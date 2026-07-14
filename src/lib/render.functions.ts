@@ -1,6 +1,24 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+
+/* -------------------- list render jobs for a brand -------------------- */
+export const listRenderJobs = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => z.object({ brand_id: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { data: jobs, error } = await context.supabase
+      .from("render_jobs")
+      .select(
+        "id, reel_id, template_id, status, attempts, max_attempts, last_error, dispatched_at, completed_at, created_at, updated_at, storage_path, logs",
+      )
+      .eq("brand_id", data.brand_id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) throw new Error(error.message);
+    return jobs ?? [];
+  });
+
 import { getRenderService, type RenderJobPayload, type RenderProps } from "./render/RenderService";
 import { TEMPLATES } from "./templates";
 
