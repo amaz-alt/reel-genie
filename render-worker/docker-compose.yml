@@ -1,0 +1,10 @@
+services:
+  render-worker:
+    build: .
+    container_name: reelforge-render-worker
+    restart: always
+    env_file: .env
+    ports:
+      - "8787:8787"
+    # Chromium needs a bit of shared memory
+    shm_size: "1gb"

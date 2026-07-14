@@ -7,6 +7,7 @@ import {
   updateSchedule,
   deleteBrand,
 } from "@/lib/brands.functions";
+import { renderNow } from "@/lib/render.functions";
 import { TEMPLATES } from "@/lib/templates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Loader2, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -105,6 +106,24 @@ function BrandDetail() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const render = useMutation({
+    mutationFn: async () => {
+      const hook = window.prompt(
+        "Hook for this test reel (10–12 words max):",
+        "Small change. Big result. Try it today.",
+      );
+      if (!hook) throw new Error("cancelled");
+      return renderNow({ data: { brand_id: brandId, hook } });
+    },
+    onSuccess: () => {
+      toast.success("Render dispatched to worker");
+      qc.invalidateQueries({ queryKey: ["brand", brandId] });
+    },
+    onError: (e: Error) => {
+      if (e.message !== "cancelled") toast.error(e.message);
+    },
+  });
+
   if (!data) return null;
 
   return (
@@ -131,6 +150,18 @@ function BrandDetail() {
             }}
           >
             <Trash2 className="mr-1.5 size-3.5" /> Delete
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => render.mutate()}
+            disabled={render.isPending}
+          >
+            {render.isPending ? (
+              <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+            ) : (
+              <Wand2 className="mr-1.5 size-3.5" />
+            )}
+            Render test reel
           </Button>
           <Button onClick={() => save.mutate()} disabled={save.isPending}>
             {save.isPending ? (
