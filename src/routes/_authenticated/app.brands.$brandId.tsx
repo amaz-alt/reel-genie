@@ -240,6 +240,9 @@ function BrandDetail() {
             </CardContent>
           </Card>
 
+          <RenderJobsPanel brandId={brandId} />
+
+
           <Card>
             <CardHeader>
               <CardTitle className="font-display text-lg">Recent reels</CardTitle>
