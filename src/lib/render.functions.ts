@@ -191,6 +191,13 @@ async function dispatchJob(
     durationInFrames: 180,
     props: job.props,
     upload: { signedUrl: signed.signedUrl, path: job.storage_path },
+    supabase: {
+      url: process.env.SUPABASE_URL!,
+      serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      reelId: job.reel_id,
+      storagePath: job.storage_path,
+      signedUrlExpiresIn: 60 * 60 * 24 * 7,
+    },
     callback: { url: callbackUrl, hmacKeyId: "v1" },
   };
 
