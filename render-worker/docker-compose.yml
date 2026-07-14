@@ -1,6 +1,8 @@
 services:
   render-worker:
-    build: .
+    build:
+      context: ..
+      dockerfile: render-worker/Dockerfile
     container_name: reelforge-render-worker
     restart: always
     env_file: .env

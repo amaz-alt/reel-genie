@@ -1,6 +1,7 @@
 FROM node:20-slim
 
-# Chromium runtime deps for Remotion's headless renderer
+# Chromium runtime deps for Remotion's headless renderer (Remotion bundles Chrome
+# Headless Shell + a static ffmpeg itself; we only need the shared libs here).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates fonts-liberation fonts-noto-color-emoji \
     libasound2 libatk-bridge2.0-0 libatk1.0-0 libcairo2 libcups2 \
@@ -11,13 +12,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install worker deps
+# Install worker deps (versions pinned in package.json)
 COPY render-worker/package.json render-worker/package-lock.json* ./
 RUN npm install --omit=optional
 
 # Copy worker source + shared remotion templates
 COPY render-worker/src ./src
 COPY remotion ./remotion
+
+# Bake Remotion's Chrome Headless Shell into the image so first render is fast
+# and container works even if egress to Remotion's CDN is later blocked.
+RUN npx remotion browser ensure
 
 ENV NODE_ENV=production
 ENV PORT=8787
