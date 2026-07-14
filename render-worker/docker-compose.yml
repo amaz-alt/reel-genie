@@ -6,7 +6,25 @@ services:
     container_name: reelforge-render-worker
     restart: always
     env_file: .env
-    ports:
-      - "8787:8787"
     # Chromium needs a bit of shared memory
     shm_size: "1gb"
+    expose:
+      - "8787"
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
+      # Router (HTTPS)
+      - "traefik.http.routers.reelforge-render.rule=Host(`${RENDER_HOST}`)"
+      - "traefik.http.routers.reelforge-render.entrypoints=websecure"
+      - "traefik.http.routers.reelforge-render.tls=true"
+      - "traefik.http.routers.reelforge-render.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.routers.reelforge-render.service=reelforge-render"
+      # Service
+      - "traefik.http.services.reelforge-render.loadbalancer.server.port=8787"
+
+networks:
+  traefik:
+    name: ${TRAEFIK_NETWORK:-traefik}
+    external: true
