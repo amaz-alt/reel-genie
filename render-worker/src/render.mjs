@@ -1,6 +1,5 @@
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition, ensureBrowser } from "@remotion/renderer";
-import { createHmac } from "node:crypto";
 import { readFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -31,11 +30,10 @@ function getBundle() {
   return bundlePromise;
 }
 
-// --- Structured logging: collect per-job, ship in callback for DB persistence.
 function makeLogger(jobId) {
   const entries = [];
   const push = (level, stage, message) => {
-    const line = { level, stage, message: String(message) };
+    const line = { at: new Date().toISOString(), level, stage, message: String(message) };
     entries.push(line);
     console.log(`[${jobId}] ${level} ${stage}: ${line.message}`);
   };
@@ -47,7 +45,6 @@ function makeLogger(jobId) {
   };
 }
 
-// Classify errors: transient ones are worth retrying, permanent ones aren't.
 function isTransient(err) {
   const msg = err instanceof Error ? err.message : String(err);
   return /ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|fetch failed|upload failed: 5\d\d|network|socket hang up/i.test(
@@ -55,11 +52,125 @@ function isTransient(err) {
   );
 }
 
-export async function renderJob(job, callbackSecret) {
+// --- Direct-write helpers: worker updates Supabase via REST using the
+// service-role key passed in the job payload. Removes the need for an
+// inbound HTTP callback into the Lovable app.
+function sb(supabase) {
+  const base = supabase.url.replace(/\/$/, "");
+  const headers = {
+    apikey: supabase.serviceKey,
+    Authorization: `Bearer ${supabase.serviceKey}`,
+    "Content-Type": "application/json",
+  };
+  return {
+    async getJob(jobId) {
+      const r = await fetch(
+        `${base}/rest/v1/render_jobs?id=eq.${jobId}&select=logs,attempts,max_attempts,status`,
+        { headers },
+      );
+      if (!r.ok) throw new Error(`getJob ${r.status}: ${await r.text()}`);
+      const arr = await r.json();
+      return arr[0] ?? null;
+    },
+    async patchJob(jobId, patch) {
+      const r = await fetch(`${base}/rest/v1/render_jobs?id=eq.${jobId}`, {
+        method: "PATCH",
+        headers: { ...headers, Prefer: "return=minimal" },
+        body: JSON.stringify(patch),
+      });
+      if (!r.ok) throw new Error(`patchJob ${r.status}: ${await r.text()}`);
+    },
+    async patchReel(reelId, patch) {
+      if (!reelId) return;
+      const r = await fetch(`${base}/rest/v1/reels?id=eq.${reelId}`, {
+        method: "PATCH",
+        headers: { ...headers, Prefer: "return=minimal" },
+        body: JSON.stringify(patch),
+      });
+      if (!r.ok) throw new Error(`patchReel ${r.status}: ${await r.text()}`);
+    },
+    async signDownload(storagePath, expiresIn) {
+      const r = await fetch(
+        `${base}/storage/v1/object/sign/brand-assets/${storagePath}`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ expiresIn }),
+        },
+      );
+      if (!r.ok) throw new Error(`signDownload ${r.status}: ${await r.text()}`);
+      const j = await r.json();
+      return `${base}/storage/v1${j.signedURL ?? j.signedUrl}`;
+    },
+  };
+}
+
+async function writeResult(job, logs, result) {
+  const client = sb(job.supabase);
+  const now = new Date().toISOString();
+  const existing = await client.getJob(job.jobId).catch(() => null);
+  const priorLogs = Array.isArray(existing?.logs) ? existing.logs : [];
+  const mergedLogs = [...priorLogs, ...logs];
+
+  if (result.status === "completed") {
+    let videoUrl = null;
+    try {
+      videoUrl = await client.signDownload(
+        job.supabase.storagePath,
+        job.supabase.signedUrlExpiresIn ?? 60 * 60 * 24 * 7,
+      );
+    } catch (e) {
+      mergedLogs.push({
+        at: now,
+        level: "warn",
+        stage: "sign_download",
+        message: String(e.message ?? e),
+      });
+    }
+    await client.patchJob(job.jobId, {
+      status: "completed",
+      completed_at: now,
+      logs: mergedLogs,
+    });
+    await client.patchReel(job.supabase.reelId, {
+      status: "ready",
+      video_url: videoUrl,
+    });
+    return;
+  }
+
+  // Failure path — retry if transient and attempts remain.
+  const attempts = existing?.attempts ?? 0;
+  const maxAttempts = existing?.max_attempts ?? 3;
+  const canRetry = result.transient !== false && attempts < maxAttempts;
+  if (canRetry) {
+    await client.patchJob(job.jobId, {
+      status: "queued",
+      last_error: result.error,
+      logs: mergedLogs,
+    });
+  } else {
+    await client.patchJob(job.jobId, {
+      status: "failed",
+      last_error: result.error,
+      completed_at: now,
+      logs: mergedLogs,
+    });
+    await client.patchReel(job.supabase.reelId, {
+      status: "failed",
+      error: result.error,
+    });
+  }
+}
+
+export async function renderJob(job) {
   const log = makeLogger(job.jobId);
   const outPath = join(tmpdir(), `${job.jobId}.mp4`);
   const startedAt = Date.now();
   try {
+    if (!job.supabase?.url || !job.supabase?.serviceKey) {
+      throw new Error("job.supabase.{url,serviceKey} required (direct-write mode)");
+    }
     log.info("start", `template=${job.templateId} ${job.width ?? 1080}x${job.height ?? 1920}`);
     await ensureBrowser();
     log.info("browser", "chrome headless shell ready");
@@ -100,36 +211,18 @@ export async function renderJob(job, callbackSecret) {
     }
     log.info("upload", `mp4 uploaded (${buf.byteLength} bytes)`);
 
-    await postCallback(job, callbackSecret, { status: "completed", logs: log.entries });
+    await writeResult(job, log.entries, { status: "completed" });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const transient = isTransient(err);
     log.error("fail", `${transient ? "transient" : "permanent"}: ${message}`);
     if (err instanceof Error && err.stack) log.error("stack", err.stack.split("\n").slice(0, 6).join(" | "));
-    await postCallback(job, callbackSecret, {
+    await writeResult(job, log.entries, {
       status: "failed",
       error: message,
       transient,
-      logs: log.entries,
-    }).catch((e) => console.error("callback failed", e));
+    }).catch((e) => console.error("writeResult failed", e));
   } finally {
     unlink(outPath).catch(() => {});
-  }
-}
-
-async function postCallback(job, secret, result) {
-  const body = JSON.stringify({ jobId: job.jobId, ...result });
-  const signature = createHmac("sha256", secret).update(body).digest("hex");
-  const res = await fetch(job.callback.url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-render-signature": signature,
-      "x-render-key-id": job.callback.hmacKeyId ?? "v1",
-    },
-    body,
-  });
-  if (!res.ok) {
-    throw new Error(`callback ${job.callback.url} responded ${res.status}`);
   }
 }
