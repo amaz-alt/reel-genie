@@ -249,6 +249,8 @@ export type Database = {
           dispatched_at: string | null
           id: string
           last_error: string | null
+          logs: Json
+          max_attempts: number
           props: Json
           reel_id: string | null
           status: string
@@ -265,6 +267,8 @@ export type Database = {
           dispatched_at?: string | null
           id?: string
           last_error?: string | null
+          logs?: Json
+          max_attempts?: number
           props?: Json
           reel_id?: string | null
           status?: string
@@ -281,6 +285,8 @@ export type Database = {
           dispatched_at?: string | null
           id?: string
           last_error?: string | null
+          logs?: Json
+          max_attempts?: number
           props?: Json
           reel_id?: string | null
           status?: string

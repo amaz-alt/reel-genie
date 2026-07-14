@@ -1,5 +1,5 @@
 import Fastify from "fastify";
-import { renderJob } from "./render.mjs";
+import { renderJob, isInFlight, markInFlight, clearInFlight } from "./render.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const TOKEN = process.env.RENDER_WORKER_TOKEN;
@@ -20,7 +20,7 @@ app.addHook("onRequest", async (req, reply) => {
   }
 });
 
-app.get("/health", async () => ({ ok: true, version: "0.1.0" }));
+app.get("/health", async () => ({ ok: true, version: "0.2.0" }));
 
 app.post("/render", async (req, reply) => {
   const job = req.body;
@@ -28,13 +28,20 @@ app.post("/render", async (req, reply) => {
     return reply.code(400).send({ error: "Invalid job payload" });
   }
 
-  // Ack immediately, render in background.
+  // Idempotency: a duplicate submission for a job we're already rendering
+  // is acknowledged but NOT re-run. Prevents duplicate MP4 uploads.
+  if (isInFlight(job.jobId)) {
+    req.log.warn({ jobId: job.jobId }, "duplicate submission ignored (in-flight)");
+    return reply.code(200).send({ jobId: job.jobId, accepted: true, duplicate: true });
+  }
+  markInFlight(job.jobId);
+
   reply.code(202).send({ jobId: job.jobId, accepted: true });
 
   setImmediate(() => {
-    renderJob(job, CALLBACK_SECRET).catch((err) => {
-      app.log.error({ err, jobId: job.jobId }, "render job crashed");
-    });
+    renderJob(job, CALLBACK_SECRET)
+      .catch((err) => app.log.error({ err, jobId: job.jobId }, "render job crashed"))
+      .finally(() => clearInFlight(job.jobId));
   });
 });
 
