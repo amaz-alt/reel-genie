@@ -1,0 +1,1 @@
+UPDATE public.render_jobs SET status='queued', last_error=NULL, dispatched_at=NULL WHERE status IN ('rendering','failed');
