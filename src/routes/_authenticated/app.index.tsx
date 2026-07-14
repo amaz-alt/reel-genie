@@ -17,7 +17,7 @@ const brandsQuery = queryOptions({
   queryFn: () => listBrands(),
 });
 
-export const Route = createFileRoute("/_authenticated/app")({
+export const Route = createFileRoute("/_authenticated/app/")({
   loader: ({ context }) => context.queryClient.ensureQueryData(brandsQuery),
   component: Dashboard,
 });
