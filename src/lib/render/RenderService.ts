@@ -29,7 +29,17 @@ export type RenderJobPayload = {
   durationInFrames: number;
   props: RenderProps;
   upload: { signedUrl: string; path: string };
-  callback: { url: string; hmacKeyId: string };
+  // Direct-write mode: worker updates render_jobs + reels via Supabase REST.
+  // Removes the need for an inbound HTTP callback (which required a published app).
+  supabase: {
+    url: string;
+    serviceKey: string;
+    reelId: string | null;
+    storagePath: string;
+    signedUrlExpiresIn: number;
+  };
+  // Kept for backward-compat with older worker builds; new worker ignores it.
+  callback?: { url: string; hmacKeyId: string };
 };
 
 export interface RenderService {
