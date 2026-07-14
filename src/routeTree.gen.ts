@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as ApiPublicRenderHealthRouteImport } from './routes/api/public/render/health'
 import { Route as ApiPublicRenderCallbackRouteImport } from './routes/api/public/render/callback'
 import { Route as AuthenticatedAppBrandsNewRouteImport } from './routes/_authenticated/app.brands.new'
@@ -36,6 +37,11 @@ const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   id: '/app',
   path: '/app',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAppRoute,
 } as any)
 const ApiPublicRenderHealthRoute = ApiPublicRenderHealthRouteImport.update({
   id: '/api/public/render/health',
@@ -64,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
+  '/app/': typeof AuthenticatedAppIndexRoute
   '/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRoute
   '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
@@ -72,7 +79,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/app': typeof AuthenticatedAppRouteWithChildren
+  '/app': typeof AuthenticatedAppIndexRoute
   '/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRoute
   '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
@@ -84,6 +91,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
+  '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRoute
   '/_authenticated/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
@@ -95,6 +103,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/app'
+    | '/app/'
     | '/app/brands/$brandId'
     | '/app/brands/new'
     | '/api/public/render/callback'
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/app'
+    | '/_authenticated/app/'
     | '/_authenticated/app/brands/$brandId'
     | '/_authenticated/app/brands/new'
     | '/api/public/render/callback'
@@ -158,6 +168,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/app/': {
+      id: '/_authenticated/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/api/public/render/health': {
       id: '/api/public/render/health'
       path: '/api/public/render/health'
@@ -190,11 +207,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedAppRouteChildren {
+  AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
   AuthenticatedAppBrandsBrandIdRoute: typeof AuthenticatedAppBrandsBrandIdRoute
   AuthenticatedAppBrandsNewRoute: typeof AuthenticatedAppBrandsNewRoute
 }
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
+  AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
   AuthenticatedAppBrandsBrandIdRoute: AuthenticatedAppBrandsBrandIdRoute,
   AuthenticatedAppBrandsNewRoute: AuthenticatedAppBrandsNewRoute,
 }
