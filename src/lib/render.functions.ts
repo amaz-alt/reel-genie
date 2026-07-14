@@ -78,7 +78,8 @@ export const renderNow = createServerFn({ method: "POST" })
         brand_id: brand.id,
         reel_id: reel.id,
         template_id: templateId,
-        props: props as unknown as never,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        props: props as any,
         storage_path: storagePath,
         status: "queued",
       })
