@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, Loader2, Save, Trash2, Wand2 } from "lucide-react";
+import { RenderJobsPanel } from "@/components/RenderJobsPanel";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
