@@ -13,7 +13,7 @@ import { ArrowLeft, ArrowRight, Loader2, Upload, Check } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/_authenticated/brands/new")({
+export const Route = createFileRoute("/_authenticated/app/brands/new")({
   component: NewBrand,
 });
 
