@@ -15,6 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedBrandsNewRouteImport } from './routes/_authenticated/brands.new'
 import { Route as AuthenticatedBrandsBrandIdRouteImport } from './routes/_authenticated/brands.$brandId'
+import { Route as ApiPublicRenderHealthRouteImport } from './routes/api/public/render/health'
 import { Route as ApiPublicRenderCallbackRouteImport } from './routes/api/public/render/callback'
 
 const AuthRoute = AuthRouteImport.update({
@@ -47,6 +48,11 @@ const AuthenticatedBrandsBrandIdRoute =
     path: '/brands/$brandId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicRenderHealthRoute = ApiPublicRenderHealthRouteImport.update({
+  id: '/api/public/render/health',
+  path: '/api/public/render/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicRenderCallbackRoute = ApiPublicRenderCallbackRouteImport.update({
   id: '/api/public/render/callback',
   path: '/api/public/render/callback',
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/brands/$brandId': typeof AuthenticatedBrandsBrandIdRoute
   '/brands/new': typeof AuthenticatedBrandsNewRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
+  '/api/public/render/health': typeof ApiPublicRenderHealthRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/brands/$brandId': typeof AuthenticatedBrandsBrandIdRoute
   '/brands/new': typeof AuthenticatedBrandsNewRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
+  '/api/public/render/health': typeof ApiPublicRenderHealthRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/_authenticated/brands/$brandId': typeof AuthenticatedBrandsBrandIdRoute
   '/_authenticated/brands/new': typeof AuthenticatedBrandsNewRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
+  '/api/public/render/health': typeof ApiPublicRenderHealthRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -88,6 +97,7 @@ export interface FileRouteTypes {
     | '/brands/$brandId'
     | '/brands/new'
     | '/api/public/render/callback'
+    | '/api/public/render/health'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/brands/$brandId'
     | '/brands/new'
     | '/api/public/render/callback'
+    | '/api/public/render/health'
   id:
     | '__root__'
     | '/'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/_authenticated/brands/$brandId'
     | '/_authenticated/brands/new'
     | '/api/public/render/callback'
+    | '/api/public/render/health'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -112,6 +124,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicRenderCallbackRoute: typeof ApiPublicRenderCallbackRoute
+  ApiPublicRenderHealthRoute: typeof ApiPublicRenderHealthRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -158,6 +171,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBrandsBrandIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/render/health': {
+      id: '/api/public/render/health'
+      path: '/api/public/render/health'
+      fullPath: '/api/public/render/health'
+      preLoaderRoute: typeof ApiPublicRenderHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/render/callback': {
       id: '/api/public/render/callback'
       path: '/api/public/render/callback'
@@ -188,17 +208,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicRenderCallbackRoute: ApiPublicRenderCallbackRoute,
+  ApiPublicRenderHealthRoute: ApiPublicRenderHealthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

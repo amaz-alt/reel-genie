@@ -4,15 +4,7 @@ import { getRenderService } from "@/lib/render/RenderService";
 export const Route = createFileRoute("/api/public/render/health")({
   server: {
     handlers: {
-      GET: async ({ request }) => {
-        const url = new URL(request.url);
-        const token = url.searchParams.get("token");
-        if (!token || token !== process.env.RENDER_WORKER_TOKEN) {
-          return new Response(JSON.stringify({ error: "unauthorized" }), {
-            status: 401,
-            headers: { "content-type": "application/json" },
-          });
-        }
+      GET: async () => {
         try {
           const svc = getRenderService();
           const h = await svc.health();
