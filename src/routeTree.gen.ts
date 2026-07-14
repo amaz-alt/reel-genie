@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as ApiPublicRenderHealthRouteImport } from './routes/api/public/render/health'
 import { Route as ApiPublicRenderCallbackRouteImport } from './routes/api/public/render/callback'
@@ -32,10 +33,15 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
-  id: '/app/',
-  path: '/app/',
+const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
+  id: '/app',
+  path: '/app',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAppRoute,
 } as any)
 const ApiPublicRenderHealthRoute = ApiPublicRenderHealthRouteImport.update({
   id: '/api/public/render/health',
@@ -49,20 +55,21 @@ const ApiPublicRenderCallbackRoute = ApiPublicRenderCallbackRouteImport.update({
 } as any)
 const AuthenticatedAppBrandsNewRoute =
   AuthenticatedAppBrandsNewRouteImport.update({
-    id: '/app/brands/new',
-    path: '/app/brands/new',
-    getParentRoute: () => AuthenticatedRouteRoute,
+    id: '/brands/new',
+    path: '/brands/new',
+    getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 const AuthenticatedAppBrandsBrandIdRoute =
   AuthenticatedAppBrandsBrandIdRouteImport.update({
-    id: '/app/brands/$brandId',
-    path: '/app/brands/$brandId',
-    getParentRoute: () => AuthenticatedRouteRoute,
+    id: '/brands/$brandId',
+    path: '/brands/$brandId',
+    getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/app': typeof AuthenticatedAppRouteWithChildren
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRoute
   '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
@@ -83,6 +90,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRoute
   '/_authenticated/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
@@ -94,6 +102,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/app'
     | '/app/'
     | '/app/brands/$brandId'
     | '/app/brands/new'
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/app'
     | '/_authenticated/app/'
     | '/_authenticated/app/brands/$brandId'
     | '/_authenticated/app/brands/new'
@@ -151,12 +161,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/app': {
+      id: '/_authenticated/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AuthenticatedAppRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/app/': {
       id: '/_authenticated/app/'
-      path: '/app'
+      path: '/'
       fullPath: '/app/'
       preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      parentRoute: typeof AuthenticatedAppRoute
     }
     '/api/public/render/health': {
       id: '/api/public/render/health'
@@ -174,31 +191,42 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/app/brands/new': {
       id: '/_authenticated/app/brands/new'
-      path: '/app/brands/new'
+      path: '/brands/new'
       fullPath: '/app/brands/new'
       preLoaderRoute: typeof AuthenticatedAppBrandsNewRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/brands/$brandId': {
       id: '/_authenticated/app/brands/$brandId'
-      path: '/app/brands/$brandId'
+      path: '/brands/$brandId'
       fullPath: '/app/brands/$brandId'
       preLoaderRoute: typeof AuthenticatedAppBrandsBrandIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      parentRoute: typeof AuthenticatedAppRoute
     }
   }
 }
 
-interface AuthenticatedRouteRouteChildren {
+interface AuthenticatedAppRouteChildren {
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
   AuthenticatedAppBrandsBrandIdRoute: typeof AuthenticatedAppBrandsBrandIdRoute
   AuthenticatedAppBrandsNewRoute: typeof AuthenticatedAppBrandsNewRoute
 }
 
-const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
   AuthenticatedAppBrandsBrandIdRoute: AuthenticatedAppBrandsBrandIdRoute,
   AuthenticatedAppBrandsNewRoute: AuthenticatedAppBrandsNewRoute,
+}
+
+const AuthenticatedAppRouteWithChildren =
+  AuthenticatedAppRoute._addFileChildren(AuthenticatedAppRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
 }
 
 const AuthenticatedRouteRouteWithChildren =
