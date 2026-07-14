@@ -78,7 +78,7 @@ export const renderNow = createServerFn({ method: "POST" })
         brand_id: brand.id,
         reel_id: reel.id,
         template_id: templateId,
-        props: props as unknown as Record<string, unknown>,
+        props: props as unknown as never,
         storage_path: storagePath,
         status: "queued",
       })
