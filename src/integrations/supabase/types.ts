@@ -14,7 +14,222 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      brand_schedules: {
+        Row: {
+          active: boolean
+          brand_id: string
+          created_at: string
+          days_of_week: number[]
+          id: string
+          time_of_day: string
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          brand_id: string
+          created_at?: string
+          days_of_week?: number[]
+          id?: string
+          time_of_day?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          brand_id?: string
+          created_at?: string
+          days_of_week?: number[]
+          id?: string
+          time_of_day?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_schedules_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brands: {
+        Row: {
+          brand_colors: Json
+          brand_fonts: Json
+          created_at: string
+          google_sheet_id: string | null
+          google_sheet_url: string | null
+          id: string
+          knowledge_base: string | null
+          logo_url: string | null
+          name: string
+          outstand_account_ids: Json
+          owner_id: string
+          reference_reel_url: string | null
+          sheet_range: string | null
+          sheet_tab: string | null
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          brand_colors?: Json
+          brand_fonts?: Json
+          created_at?: string
+          google_sheet_id?: string | null
+          google_sheet_url?: string | null
+          id?: string
+          knowledge_base?: string | null
+          logo_url?: string | null
+          name: string
+          outstand_account_ids?: Json
+          owner_id: string
+          reference_reel_url?: string | null
+          sheet_range?: string | null
+          sheet_tab?: string | null
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          brand_colors?: Json
+          brand_fonts?: Json
+          created_at?: string
+          google_sheet_id?: string | null
+          google_sheet_url?: string | null
+          id?: string
+          knowledge_base?: string | null
+          logo_url?: string | null
+          name?: string
+          outstand_account_ids?: Json
+          owner_id?: string
+          reference_reel_url?: string | null
+          sheet_range?: string | null
+          sheet_tab?: string | null
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      products_consumed: {
+        Row: {
+          brand_id: string
+          consumed_at: string
+          id: string
+          product_row_key: string
+        }
+        Insert: {
+          brand_id: string
+          consumed_at?: string
+          id?: string
+          product_row_key: string
+        }
+        Update: {
+          brand_id?: string
+          consumed_at?: string
+          id?: string
+          product_row_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_consumed_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      reels: {
+        Row: {
+          brand_id: string
+          caption: string | null
+          created_at: string
+          error: string | null
+          hashtags: string[] | null
+          hook: string | null
+          id: string
+          outstand_post_ids: Json
+          product_row_key: string | null
+          product_snapshot: Json | null
+          published_at: string | null
+          render_provider_id: string | null
+          scheduled_for: string | null
+          status: Database["public"]["Enums"]["reel_status"]
+          template_id: string | null
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          brand_id: string
+          caption?: string | null
+          created_at?: string
+          error?: string | null
+          hashtags?: string[] | null
+          hook?: string | null
+          id?: string
+          outstand_post_ids?: Json
+          product_row_key?: string | null
+          product_snapshot?: Json | null
+          published_at?: string | null
+          render_provider_id?: string | null
+          scheduled_for?: string | null
+          status?: Database["public"]["Enums"]["reel_status"]
+          template_id?: string | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          brand_id?: string
+          caption?: string | null
+          created_at?: string
+          error?: string | null
+          hashtags?: string[] | null
+          hook?: string | null
+          id?: string
+          outstand_post_ids?: Json
+          product_row_key?: string | null
+          product_snapshot?: Json | null
+          published_at?: string | null
+          render_provider_id?: string | null
+          scheduled_for?: string | null
+          status?: Database["public"]["Enums"]["reel_status"]
+          template_id?: string | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reels_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +238,14 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      reel_status:
+        | "queued"
+        | "generating_copy"
+        | "rendering"
+        | "ready"
+        | "publishing"
+        | "published"
+        | "failed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +372,16 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      reel_status: [
+        "queued",
+        "generating_copy",
+        "rendering",
+        "ready",
+        "publishing",
+        "published",
+        "failed",
+      ],
+    },
   },
 } as const
