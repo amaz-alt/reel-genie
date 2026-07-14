@@ -21,8 +21,10 @@ COPY render-worker/src ./src
 COPY remotion ./remotion
 
 # Bake Remotion's Chrome Headless Shell into the image so first render is fast
-# and container works even if egress to Remotion's CDN is later blocked.
-RUN npx remotion browser ensure
+# and the container works even if egress to Remotion's CDN is later blocked.
+# We call the same ensureBrowser() API the `remotion browser ensure` CLI wraps —
+# avoids relying on `npx` bin resolution inside the slim image.
+RUN node -e "import('@remotion/renderer').then(m => m.ensureBrowser()).then(() => console.log('chrome headless shell ready')).catch((e) => { console.error(e); process.exit(1); })"
 
 ENV NODE_ENV=production
 ENV PORT=8787
