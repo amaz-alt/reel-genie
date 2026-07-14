@@ -1,74 +1,129 @@
-# Automated Short-Form Reel Generator — v1 plan
+# Reel Generator — Option B: VPS Render Worker
 
-## Architecture at a glance
+Split cleanly: **Lovable owns everything except pixel rendering. The VPS is a dumb render box.**
 
 ```text
-[Dashboard UI]  ──►  [Server functions]  ──►  [Lovable Cloud DB]
-                          │
-                          ├─► Google Sheets (read next unused product)
-                          ├─► Lovable AI Gateway (hook + caption + hashtags)
-                          ├─► Video render API (template + text → MP4)
-                          └─► Outstand.so API (publish)
-
-[Daily cron  →  /api/public/cron/run]  ──► fans out per-brand jobs due today
+[Lovable app] ── enqueue job ──► [render_jobs table]
+       ▲                                │
+       │ signed upload URL              │ HTTP POST /render (bearer)
+       │ + webhook callback             ▼
+       │                        [VPS: Node + Remotion + Chromium in Docker]
+       │                                │
+       │ ◄── PUT MP4 to storage ────────┤
+       │ ◄── POST /api/public/render/callback (HMAC) ─┘
+       ▼
+   reels.status = ready → publish step
 ```
 
-## Stack decisions
+## What lives where
 
-- **DB / auth / storage**: Lovable Cloud (Supabase under the hood).
-- **AI**: Lovable AI Gateway, `google/gemini-3-flash-preview` (Gemini > OpenAI for cost/latency on short copy; if you specifically need OpenAI say so).
-- **Video rendering**: **Creatomate** (or Shotstack — pick one). Cloudflare Workers can't run Remotion/ffmpeg. These services accept a JSON template + variables → MP4 URL. This is the only realistic path for auto-rendered 1080×1920 MP4 in this stack. You'll need to sign up (both have free tiers) and paste an API key.
-- **Templates**: I hand-build 4 starter Creatomate templates (kinetic type, split-screen product, quote-card, before/after). Each brand picks a template + supplies colors, fonts, logo. Reference reel is stored for human comparison only.
-- **Cron**: single daily cron hits `/api/public/cron/run` (HMAC-signed). It reads every brand's schedule, picks the ones due today, and runs the pipeline per brand.
-- **Publishing**: Outstand.so API — I need docs + key from you before wiring.
+**Lovable (this project)**
+- All 15–20 Remotion templates (React/TSX) live in `remotion/` in this repo. They are the source of truth. The VPS clones/pulls them at deploy or fetches a bundle URL per job.
+- `RenderService` abstraction (interface + one impl `VpsRenderService`).
+- `render_jobs` table + queue worker (server function triggered by cron).
+- AI copy generation (Lovable AI Gateway).
+- Sheet reading, product rotation, scheduling, publishing (Outstand later).
+- Callback endpoint the VPS calls when render finishes.
 
-## Data model (Lovable Cloud)
+**VPS (isolated service)**
+- Single Docker container: Node 20 + `@remotion/renderer` + headless Chromium.
+- Tiny Fastify app exposing:
+  - `POST /render` — accepts job, renders, uploads, calls callback. Auth: `Authorization: Bearer <RENDER_WORKER_TOKEN>`.
+  - `GET /health` — liveness.
+- Zero state. No DB. Job payload is self-contained.
 
-- `brands` — id, owner user_id, name, google_sheet_id, sheet_tab, sheet_range, knowledge_base (text), template_id, brand_colors (jsonb), brand_fonts (jsonb), reference_reel_url, outstand_account_ids (jsonb), created_at
-- `brand_schedules` — brand_id, days_of_week (int[]), time_of_day (HH:MM), timezone, active
-- `products_consumed` — brand_id, product_row_key (sheet row id or hash), consumed_at  ← rotation memory
-- `reels` — id, brand_id, product_row_key, hook, caption, hashtags, video_url, status (queued|rendering|ready|published|failed), scheduled_for, published_at, outstand_post_ids (jsonb), error
-- `user_roles` — standard has_role pattern
+## Data model (new)
 
-Grants + RLS: owner reads/writes own brand data; service_role for cron/render jobs.
+`render_jobs`
+- id, brand_id, reel_id, template_id, props (jsonb), status (queued|dispatched|rendering|uploading|done|failed), attempts, last_error, worker_url, dispatched_at, completed_at, created_at, updated_at.
 
-## Pipeline (per brand, per scheduled run)
+`reels` gains: `render_job_id`.
 
-1. Read Google Sheet → get all product rows.
-2. Diff against `products_consumed` for that brand → pick the oldest-unused row (falls back to least-recently-consumed if all seen, giving rotation).
-3. Call Lovable AI with brand KB + product row → structured output `{ hook (≤12 words), caption, hashtags[] }`.
-4. POST to Creatomate: `{ template_id: brand.template_id, modifications: { hook, caption, brand_colors, brand_fonts, logo, product_image } }` → poll for MP4 URL.
-5. Store row in `reels` (status ready).
-6. Call Outstand.so publish endpoint with the MP4 + caption + hashtags per connected social account.
-7. Mark product consumed, mark reel published.
+RLS: owner via brand; service_role full.
 
-## UI surface (single dashboard app)
+## RenderService interface
 
-- `/` — landing / login
-- `/app` — auth-gated: list of brands, "New brand" button
-- `/app/brands/new` — 5-step wizard: name → connect Google Sheet (paste sheet URL, pick tab) → schedule → knowledge base → colors/fonts + template + reference reel upload → Outstand accounts
-- `/app/brands/$id` — brand detail: schedule, KB, template, past reels grid, next scheduled run, "Run now" button
-- `/app/brands/$id/reels/$reelId` — MP4 preview, caption, hashtags, publish status
+```ts
+// src/lib/render/RenderService.ts
+export interface RenderService {
+  submit(job: RenderJobPayload): Promise<{ workerJobId: string }>;
+}
+```
 
-## Things I need from you to finish v1
+Impl `VpsRenderService` POSTs to `${VPS_URL}/render` with `Bearer RENDER_WORKER_TOKEN`. Swapping renderers later = new impl, no callers change.
 
-1. **Creatomate (or Shotstack) API key** — I'll add it via `add_secret` after you confirm which.
-2. **Outstand.so API docs URL** + **API key** — I'll wire the publish call from their docs.
-3. **Google Sheets connection method** — easiest is a **published-to-web CSV** URL per brand (no OAuth). Alternative: builder-owned Google Sheets connector (one account reads all brands' sheets). Say which.
+## Job payload (Lovable → VPS)
 
-## Technical details
+```json
+{
+  "jobId": "uuid",
+  "templateId": "kinetic-type",
+  "durationInFrames": 180,
+  "fps": 30,
+  "width": 1080,
+  "height": 1920,
+  "props": { "hook": "...", "brand": { "colors": {...}, "fonts": {...}, "logoUrl": "..." }, "product": {...} },
+  "upload": { "signedUrl": "https://...supabase.../object/upload/sign/...", "path": "brand/../reel.mp4" },
+  "callback": { "url": "https://project--<id>.lovable.app/api/public/render/callback", "hmacKeyId": "v1" }
+}
+```
 
-- Cron endpoint: `POST /api/public/cron/run` — HMAC over raw body with `CRON_SECRET` (auto-generated). Idempotent per (brand, day).
-- Rendering: Creatomate render calls are async — server function submits, stores render id, and a second cron poll (`/api/public/cron/poll`) finalizes and publishes when ready.
-- No ffmpeg / no Remotion in-process. Video work happens entirely at the render service.
-- Reference reel MP4 is stored in Lovable Cloud storage; it's a design brief for the human choosing a template, not machine-consumed.
-- All secrets (`LOVABLE_API_KEY`, `CREATOMATE_API_KEY`, `OUTSTAND_API_KEY`, `CRON_SECRET`) stay server-side.
+Callback body is signed with `RENDER_CALLBACK_SECRET` (HMAC-SHA256 over raw body). Lovable verifies before updating `render_jobs` + `reels`.
 
-## Explicitly OUT of scope for v1
+## Flow per scheduled run
 
-- Analytics on posts (impressions, saves) — additive later.
-- Auto-picking product images from the sheet if the sheet has no image column — templates that need an image will require an image URL column.
-- True motion-design cloning of the reference reel — not solvable today; template picker + brand tokens is the honest substitute.
-- Per-platform caption variants — one caption + hashtag set across all connected accounts in v1.
+1. Daily cron `/api/public/cron/run` (existing plan) picks brands due today.
+2. For each: read Sheet → pick next unused product → AI copy → insert `reels` row (queued) + `render_jobs` row (queued).
+3. Queue drainer server fn: for each `queued` job, create signed upload URL for `reels/{id}.mp4` in `brand-assets`, POST job to VPS, mark `dispatched`.
+4. VPS renders with Remotion (`renderMedia`), streams MP4 to the signed URL, POSTs signed callback `{ jobId, status, error? }`.
+5. Callback route marks `render_jobs.done`, sets `reels.video_url` to signed read URL, transitions `reels.status = ready`.
+6. Publish step (Outstand, wired later) picks up `ready` reels.
 
-Approve and I'll start with: Lovable Cloud enablement → schema + auth → brand CRUD + wizard → AI copy + Creatomate render → Outstand publish → cron. I'll pause after schema + auth for a quick check-in.
+Retries: on VPS failure or callback timeout > 15 min, drainer retries up to 3 with backoff.
+
+## VPS worker package (delivered as `render-worker/` in repo, deployed manually to VPS)
+
+Structure:
+```
+render-worker/
+  Dockerfile           # node:20-slim + Chromium deps
+  docker-compose.yml   # single service, restart: always, port 8787
+  package.json
+  src/server.ts        # Fastify: /render, /health, bearer auth
+  src/render.ts        # bundle() + renderMedia() + upload via fetch PUT
+  remotion/            # symlink or copy of templates from main repo
+  .env.example         # RENDER_WORKER_TOKEN, RENDER_CALLBACK_SECRET
+  README.md            # 5-step deploy on Hostinger VPS
+```
+
+Deploy on VPS: `git clone` → `cp .env.example .env` → fill token/secret → `docker compose up -d`. Point Lovable at `https://<vps-host>:8787` (or behind Caddy for TLS — recommended, README covers it).
+
+## Templates (Lovable-side)
+
+Start with 4 in this ticket, scaffold the rest as stubs:
+- `kinetic-type`, `product-showcase`, `quote-card`, `before-after`.
+
+Each is a Remotion composition in `remotion/compositions/<id>.tsx` accepting a typed `props` schema. `remotion/Root.tsx` registers them; template picker in the wizard reads the same registry.
+
+## Secrets (Lovable side, added via add_secret when you approve)
+
+- `VPS_RENDER_URL` — e.g. `https://render.yourdomain.com`
+- `RENDER_WORKER_TOKEN` — random, we generate
+- `RENDER_CALLBACK_SECRET` — random, we generate, also placed in VPS `.env`
+
+## What I'll build this turn
+
+1. `render_jobs` table + RLS + grants; `reels.render_job_id` column.
+2. `remotion/` scaffold with `Root.tsx`, 4 compositions, shared brand-token props.
+3. `src/lib/render/RenderService.ts` + `VpsRenderService`.
+4. `src/lib/render.functions.ts`: `enqueueRender`, `drainRenderQueue` (server fns).
+5. `src/routes/api/public/render/callback.ts` (HMAC-verified).
+6. `render-worker/` folder with Dockerfile, compose, Fastify server, README.
+7. Generate `RENDER_WORKER_TOKEN` + `RENDER_CALLBACK_SECRET`; ask you for `VPS_RENDER_URL` after deploy.
+
+## Out of scope this turn
+
+- Wiring publish to Outstand (waiting on their docs/key — you said later).
+- Cron pipeline itself (`/api/public/cron/run`) — I'll wire it in the next slice once the render path is verified end-to-end with a "Render now" button.
+
+Approve and I ship the above.
