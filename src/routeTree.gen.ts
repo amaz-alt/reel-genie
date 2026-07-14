@@ -13,10 +13,10 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
-import { Route as AuthenticatedBrandsNewRouteImport } from './routes/_authenticated/brands.new'
-import { Route as AuthenticatedBrandsBrandIdRouteImport } from './routes/_authenticated/brands.$brandId'
 import { Route as ApiPublicRenderHealthRouteImport } from './routes/api/public/render/health'
 import { Route as ApiPublicRenderCallbackRouteImport } from './routes/api/public/render/callback'
+import { Route as AuthenticatedAppBrandsNewRouteImport } from './routes/_authenticated/app.brands.new'
+import { Route as AuthenticatedAppBrandsBrandIdRouteImport } from './routes/_authenticated/app.brands.$brandId'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -37,17 +37,6 @@ const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   path: '/app',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedBrandsNewRoute = AuthenticatedBrandsNewRouteImport.update({
-  id: '/brands/new',
-  path: '/brands/new',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedBrandsBrandIdRoute =
-  AuthenticatedBrandsBrandIdRouteImport.update({
-    id: '/brands/$brandId',
-    path: '/brands/$brandId',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const ApiPublicRenderHealthRoute = ApiPublicRenderHealthRouteImport.update({
   id: '/api/public/render/health',
   path: '/api/public/render/health',
@@ -58,22 +47,34 @@ const ApiPublicRenderCallbackRoute = ApiPublicRenderCallbackRouteImport.update({
   path: '/api/public/render/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAppBrandsNewRoute =
+  AuthenticatedAppBrandsNewRouteImport.update({
+    id: '/brands/new',
+    path: '/brands/new',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppBrandsBrandIdRoute =
+  AuthenticatedAppBrandsBrandIdRouteImport.update({
+    id: '/brands/$brandId',
+    path: '/brands/$brandId',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/app': typeof AuthenticatedAppRoute
-  '/brands/$brandId': typeof AuthenticatedBrandsBrandIdRoute
-  '/brands/new': typeof AuthenticatedBrandsNewRoute
+  '/app': typeof AuthenticatedAppRouteWithChildren
+  '/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRoute
+  '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
   '/api/public/render/health': typeof ApiPublicRenderHealthRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/app': typeof AuthenticatedAppRoute
-  '/brands/$brandId': typeof AuthenticatedBrandsBrandIdRoute
-  '/brands/new': typeof AuthenticatedBrandsNewRoute
+  '/app': typeof AuthenticatedAppRouteWithChildren
+  '/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRoute
+  '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
   '/api/public/render/health': typeof ApiPublicRenderHealthRoute
 }
@@ -82,9 +83,9 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
-  '/_authenticated/app': typeof AuthenticatedAppRoute
-  '/_authenticated/brands/$brandId': typeof AuthenticatedBrandsBrandIdRoute
-  '/_authenticated/brands/new': typeof AuthenticatedBrandsNewRoute
+  '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
+  '/_authenticated/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRoute
+  '/_authenticated/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
   '/api/public/render/health': typeof ApiPublicRenderHealthRoute
 }
@@ -94,8 +95,8 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/app'
-    | '/brands/$brandId'
-    | '/brands/new'
+    | '/app/brands/$brandId'
+    | '/app/brands/new'
     | '/api/public/render/callback'
     | '/api/public/render/health'
   fileRoutesByTo: FileRoutesByTo
@@ -103,8 +104,8 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/app'
-    | '/brands/$brandId'
-    | '/brands/new'
+    | '/app/brands/$brandId'
+    | '/app/brands/new'
     | '/api/public/render/callback'
     | '/api/public/render/health'
   id:
@@ -113,8 +114,8 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/app'
-    | '/_authenticated/brands/$brandId'
-    | '/_authenticated/brands/new'
+    | '/_authenticated/app/brands/$brandId'
+    | '/_authenticated/app/brands/new'
     | '/api/public/render/callback'
     | '/api/public/render/health'
   fileRoutesById: FileRoutesById
@@ -157,20 +158,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/brands/new': {
-      id: '/_authenticated/brands/new'
-      path: '/brands/new'
-      fullPath: '/brands/new'
-      preLoaderRoute: typeof AuthenticatedBrandsNewRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/brands/$brandId': {
-      id: '/_authenticated/brands/$brandId'
-      path: '/brands/$brandId'
-      fullPath: '/brands/$brandId'
-      preLoaderRoute: typeof AuthenticatedBrandsBrandIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/api/public/render/health': {
       id: '/api/public/render/health'
       path: '/api/public/render/health'
@@ -185,19 +172,42 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicRenderCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/app/brands/new': {
+      id: '/_authenticated/app/brands/new'
+      path: '/brands/new'
+      fullPath: '/app/brands/new'
+      preLoaderRoute: typeof AuthenticatedAppBrandsNewRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/brands/$brandId': {
+      id: '/_authenticated/app/brands/$brandId'
+      path: '/brands/$brandId'
+      fullPath: '/app/brands/$brandId'
+      preLoaderRoute: typeof AuthenticatedAppBrandsBrandIdRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
   }
 }
 
+interface AuthenticatedAppRouteChildren {
+  AuthenticatedAppBrandsBrandIdRoute: typeof AuthenticatedAppBrandsBrandIdRoute
+  AuthenticatedAppBrandsNewRoute: typeof AuthenticatedAppBrandsNewRoute
+}
+
+const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
+  AuthenticatedAppBrandsBrandIdRoute: AuthenticatedAppBrandsBrandIdRoute,
+  AuthenticatedAppBrandsNewRoute: AuthenticatedAppBrandsNewRoute,
+}
+
+const AuthenticatedAppRouteWithChildren =
+  AuthenticatedAppRoute._addFileChildren(AuthenticatedAppRouteChildren)
+
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedAppRoute: typeof AuthenticatedAppRoute
-  AuthenticatedBrandsBrandIdRoute: typeof AuthenticatedBrandsBrandIdRoute
-  AuthenticatedBrandsNewRoute: typeof AuthenticatedBrandsNewRoute
+  AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedAppRoute: AuthenticatedAppRoute,
-  AuthenticatedBrandsBrandIdRoute: AuthenticatedBrandsBrandIdRoute,
-  AuthenticatedBrandsNewRoute: AuthenticatedBrandsNewRoute,
+  AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
 }
 
 const AuthenticatedRouteRouteWithChildren =

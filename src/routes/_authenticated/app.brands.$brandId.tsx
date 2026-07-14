@@ -28,7 +28,7 @@ const brandQuery = (id: string) =>
     queryFn: () => getBrand({ data: { id } }),
   });
 
-export const Route = createFileRoute("/_authenticated/brands/$brandId")({
+export const Route = createFileRoute("/_authenticated/app/brands/$brandId")({
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(brandQuery(params.brandId)),
   component: BrandDetail,
