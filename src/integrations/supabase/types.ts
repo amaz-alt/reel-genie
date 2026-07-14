@@ -175,6 +175,7 @@ export type Database = {
           product_row_key: string | null
           product_snapshot: Json | null
           published_at: string | null
+          render_job_id: string | null
           render_provider_id: string | null
           scheduled_for: string | null
           status: Database["public"]["Enums"]["reel_status"]
@@ -194,6 +195,7 @@ export type Database = {
           product_row_key?: string | null
           product_snapshot?: Json | null
           published_at?: string | null
+          render_job_id?: string | null
           render_provider_id?: string | null
           scheduled_for?: string | null
           status?: Database["public"]["Enums"]["reel_status"]
@@ -213,6 +215,7 @@ export type Database = {
           product_row_key?: string | null
           product_snapshot?: Json | null
           published_at?: string | null
+          render_job_id?: string | null
           render_provider_id?: string | null
           scheduled_for?: string | null
           status?: Database["public"]["Enums"]["reel_status"]
@@ -226,6 +229,79 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reels_render_job_id_fkey"
+            columns: ["render_job_id"]
+            isOneToOne: false
+            referencedRelation: "render_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      render_jobs: {
+        Row: {
+          attempts: number
+          brand_id: string
+          completed_at: string | null
+          created_at: string
+          dispatched_at: string | null
+          id: string
+          last_error: string | null
+          props: Json
+          reel_id: string | null
+          status: string
+          storage_path: string | null
+          template_id: string
+          updated_at: string
+          worker_url: string | null
+        }
+        Insert: {
+          attempts?: number
+          brand_id: string
+          completed_at?: string | null
+          created_at?: string
+          dispatched_at?: string | null
+          id?: string
+          last_error?: string | null
+          props?: Json
+          reel_id?: string | null
+          status?: string
+          storage_path?: string | null
+          template_id: string
+          updated_at?: string
+          worker_url?: string | null
+        }
+        Update: {
+          attempts?: number
+          brand_id?: string
+          completed_at?: string | null
+          created_at?: string
+          dispatched_at?: string | null
+          id?: string
+          last_error?: string | null
+          props?: Json
+          reel_id?: string | null
+          status?: string
+          storage_path?: string | null
+          template_id?: string
+          updated_at?: string
+          worker_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "render_jobs_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_jobs_reel_id_fkey"
+            columns: ["reel_id"]
+            isOneToOne: false
+            referencedRelation: "reels"
             referencedColumns: ["id"]
           },
         ]
