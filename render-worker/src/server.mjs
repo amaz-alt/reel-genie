@@ -3,10 +3,9 @@ import { renderJob, isInFlight, markInFlight, clearInFlight } from "./render.mjs
 
 const PORT = Number(process.env.PORT ?? 8787);
 const TOKEN = process.env.RENDER_WORKER_TOKEN;
-const CALLBACK_SECRET = process.env.RENDER_CALLBACK_SECRET;
 
-if (!TOKEN || !CALLBACK_SECRET) {
-  console.error("Missing RENDER_WORKER_TOKEN or RENDER_CALLBACK_SECRET");
+if (!TOKEN) {
+  console.error("Missing RENDER_WORKER_TOKEN");
   process.exit(1);
 }
 
@@ -20,16 +19,14 @@ app.addHook("onRequest", async (req, reply) => {
   }
 });
 
-app.get("/health", async () => ({ ok: true, version: "0.2.0" }));
+app.get("/health", async () => ({ ok: true, version: "0.3.0" }));
 
 app.post("/render", async (req, reply) => {
   const job = req.body;
-  if (!job?.jobId || !job?.templateId || !job?.upload?.signedUrl || !job?.callback?.url) {
-    return reply.code(400).send({ error: "Invalid job payload" });
+  if (!job?.jobId || !job?.templateId || !job?.upload?.signedUrl || !job?.supabase?.url) {
+    return reply.code(400).send({ error: "Invalid job payload (needs jobId, templateId, upload.signedUrl, supabase.url)" });
   }
 
-  // Idempotency: a duplicate submission for a job we're already rendering
-  // is acknowledged but NOT re-run. Prevents duplicate MP4 uploads.
   if (isInFlight(job.jobId)) {
     req.log.warn({ jobId: job.jobId }, "duplicate submission ignored (in-flight)");
     return reply.code(200).send({ jobId: job.jobId, accepted: true, duplicate: true });
@@ -39,7 +36,7 @@ app.post("/render", async (req, reply) => {
   reply.code(202).send({ jobId: job.jobId, accepted: true });
 
   setImmediate(() => {
-    renderJob(job, CALLBACK_SECRET)
+    renderJob(job)
       .catch((err) => app.log.error({ err, jobId: job.jobId }, "render job crashed"))
       .finally(() => clearInFlight(job.jobId));
   });
