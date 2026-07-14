@@ -119,11 +119,12 @@ export const updateBrand = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { id, ...rest } = data;
-    const patch: Record<string, unknown> = { ...rest };
-    if (rest.google_sheet_url !== undefined) {
-      patch.google_sheet_id = parseSheetId(rest.google_sheet_url as string);
+    const patch = { ...rest } as Record<string, unknown>;
+    if (typeof rest.google_sheet_url === "string") {
+      patch.google_sheet_id = parseSheetId(rest.google_sheet_url);
     }
-    const { error } = await context.supabase.from("brands").update(patch).eq("id", id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await context.supabase.from("brands").update(patch as any).eq("id", id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
