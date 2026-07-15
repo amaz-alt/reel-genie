@@ -222,3 +222,75 @@ export const getBrandAssetSignedReadUrl = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { url: signed.signedUrl };
   });
+
+/* -------------------- reference vault -------------------- */
+const MAX_REFERENCES = 15;
+
+export const listBrandReferences = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => z.object({ brand_id: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("brand_references")
+      .select("id, storage_path, label, notes, created_at")
+      .eq("brand_id", data.brand_id)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    const withUrls = await Promise.all(
+      (rows ?? []).map(async (r) => {
+        const { data: signed } = await context.supabase.storage
+          .from("brand-assets")
+          .createSignedUrl(r.storage_path, 60 * 60);
+        return { ...r, url: signed?.signedUrl ?? null };
+      }),
+    );
+    return withUrls;
+  });
+
+export const addBrandReference = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        brand_id: z.string().uuid(),
+        storage_path: z.string().min(1),
+        label: z.string().max(200).optional(),
+        notes: z.string().max(2000).optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { count } = await context.supabase
+      .from("brand_references")
+      .select("id", { count: "exact", head: true })
+      .eq("brand_id", data.brand_id);
+    if ((count ?? 0) >= MAX_REFERENCES) {
+      throw new Error(`Reference vault is full (max ${MAX_REFERENCES}). Delete one first.`);
+    }
+    const { error } = await context.supabase.from("brand_references").insert({
+      brand_id: data.brand_id,
+      owner_id: context.userId,
+      storage_path: data.storage_path,
+      label: data.label ?? null,
+      notes: data.notes ?? null,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteBrandReference = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { data: row } = await context.supabase
+      .from("brand_references")
+      .select("storage_path")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (row?.storage_path) {
+      await context.supabase.storage.from("brand-assets").remove([row.storage_path]);
+    }
+    const { error } = await context.supabase.from("brand_references").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
