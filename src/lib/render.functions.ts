@@ -192,7 +192,7 @@ export const renderNow = createServerFn({ method: "POST" })
 
     const props: RenderProps = {
       hook: copy.hook,
-      caption: copy.caption,
+      // Caption is for the social post copy, NOT drawn inside the video.
       seed,
       variant,
       brand: {
