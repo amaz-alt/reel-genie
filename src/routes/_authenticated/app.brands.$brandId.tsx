@@ -108,21 +108,13 @@ function BrandDetail() {
   });
 
   const render = useMutation({
-    mutationFn: async () => {
-      const hook = window.prompt(
-        "Hook for this test reel (10–12 words max):",
-        "Small change. Big result. Try it today.",
-      );
-      if (!hook) throw new Error("cancelled");
-      return renderNow({ data: { brand_id: brandId, hook } });
-    },
-    onSuccess: () => {
-      toast.success("Render dispatched to worker");
+    mutationFn: () => renderNow({ data: { brand_id: brandId } }),
+    onSuccess: (r) => {
+      toast.success(`Rendering: "${r.hook}"`);
       qc.invalidateQueries({ queryKey: ["brand", brandId] });
+      qc.invalidateQueries({ queryKey: ["render_jobs", brandId] });
     },
-    onError: (e: Error) => {
-      if (e.message !== "cancelled") toast.error(e.message);
-    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   if (!data) return null;
