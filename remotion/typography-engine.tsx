@@ -94,13 +94,7 @@ export function timingEngine(plan: TypographyStylePlan, totalFrames: number): Sc
     return out;
   });
 
-  let cursor = lead;
-  const scheduled = plan.beats.map((beat, index) => {
-    const duration = clamp(Math.round((weights[index] / total) * budget), 24, 58);
-    const out = { ...beat, from: cursor, duration, index };
-    cursor += duration;
-    return out;
-  });
+
 
   const used = cursor + tail;
   if (used < totalFrames && scheduled.length) {
