@@ -249,30 +249,59 @@ function BrandDetail() {
                   {data.reels.map((r) => (
                     <div
                       key={r.id}
-                      className="flex items-start justify-between gap-3 rounded-lg border border-border p-3"
+                      className="rounded-lg border border-border p-3 space-y-3"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{r.hook ?? "—"}</div>
-                        <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                          {r.caption ?? ""}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium">{r.hook ?? "—"}</div>
+                          <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                            {r.caption ?? ""}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <Badge
+                            variant={
+                              r.status === "published"
+                                ? "default"
+                                : r.status === "failed"
+                                  ? "destructive"
+                                  : "secondary"
+                            }
+                          >
+                            {r.status}
+                          </Badge>
+                          <div className="mt-1 text-[10px] text-muted-foreground">
+                            {new Date(r.created_at).toLocaleString()}
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <Badge
-                          variant={
-                            r.status === "published"
-                              ? "default"
-                              : r.status === "failed"
-                                ? "destructive"
-                                : "secondary"
-                          }
-                        >
-                          {r.status}
-                        </Badge>
-                        <div className="mt-1 text-[10px] text-muted-foreground">
-                          {new Date(r.created_at).toLocaleString()}
+                      {r.video_url ? (
+                        <div className="space-y-2">
+                          <video
+                            src={r.video_url}
+                            controls
+                            playsInline
+                            className="w-full max-w-[280px] rounded-md border border-border bg-black aspect-[9/16]"
+                          />
+                          <div className="flex gap-3 text-xs">
+                            <a
+                              href={r.video_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-primary underline"
+                            >
+                              Open in new tab
+                            </a>
+                            <a
+                              href={r.video_url}
+                              download
+                              className="text-primary underline"
+                            >
+                              Download MP4
+                            </a>
+                          </div>
                         </div>
-                      </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>
