@@ -67,6 +67,8 @@ const brandInput = z.object({
     .optional(),
   logo_url: z.string().url().optional().or(z.literal("")),
   reference_reel_url: z.string().url().optional().or(z.literal("")),
+  reference_reel_path: z.string().optional(),
+  reference_reel_notes: z.string().max(2000).optional(),
 });
 
 function parseSheetId(url: string | undefined) {
@@ -98,6 +100,16 @@ export const createBrand = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+
+    if (data.reference_reel_path) {
+      await context.supabase.from("brand_references").insert({
+        brand_id: created.id,
+        owner_id: context.userId,
+        storage_path: data.reference_reel_path,
+        label: "Primary reference reel",
+        notes: data.reference_reel_notes ?? null,
+      });
+    }
 
     // Default schedule: weekdays at 09:00 UTC
     await context.supabase.from("brand_schedules").insert({
