@@ -45,8 +45,71 @@ async function appendLog(admin: any, jobId: string, entry: Omit<LogEntry, "at">)
 }
 
 /**
- * Enqueue + dispatch a render for a brand.
- * v1: called from a "Render now" button on the brand detail page.
+ * Generate hook + caption + hashtags via Lovable AI using the brand's
+ * knowledge base as the voice guide. Falls back to a sane default if the
+ * gateway is unreachable so a render is never blocked on copy.
+ */
+async function generateCopy(input: {
+  brandName: string;
+  knowledgeBase: string | null;
+  product?: Record<string, unknown> | null;
+}): Promise<{ hook: string; caption: string; hashtags: string[] }> {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) {
+    return {
+      hook: `${input.brandName}: small change, big result.`,
+      caption: `Discover what makes ${input.brandName} different.`,
+      hashtags: ["#reels", "#brand", "#daily"],
+    };
+  }
+  const sys =
+    "You write short-form reel copy. Return STRICT JSON only, no prose, no markdown fences. " +
+    "Schema: {\"hook\": string (10-12 words max, punchy), \"caption\": string (max 220 chars, brand voice), \"hashtags\": string[] (5-8 relevant tags, each starts with #)}.";
+  const user = [
+    `Brand: ${input.brandName}`,
+    input.knowledgeBase ? `Brand voice / knowledge base:\n${input.knowledgeBase}` : "",
+    input.product ? `Product for today:\n${JSON.stringify(input.product)}` : "",
+    "Write one reel now.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", "Lovable-API-Key": key },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: user },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!res.ok) throw new Error(`AI gateway ${res.status}: ${await res.text()}`);
+    const j = await res.json();
+    const text = j?.choices?.[0]?.message?.content ?? "";
+    const parsed = JSON.parse(text);
+    return {
+      hook: String(parsed.hook ?? "").slice(0, 200) || `${input.brandName}: try it today.`,
+      caption: String(parsed.caption ?? "").slice(0, 1000),
+      hashtags: Array.isArray(parsed.hashtags)
+        ? parsed.hashtags.map((t: unknown) => String(t)).slice(0, 12)
+        : [],
+    };
+  } catch {
+    return {
+      hook: `${input.brandName}: small change, big result.`,
+      caption: `Discover what makes ${input.brandName} different.`,
+      hashtags: ["#reels", "#brand", "#daily"],
+    };
+  }
+}
+
+/**
+ * Enqueue + dispatch a render for a brand. Copy is AI-generated from the
+ * brand's knowledge base — callers no longer supply the hook.
  */
 export const renderNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -54,7 +117,7 @@ export const renderNow = createServerFn({ method: "POST" })
     z
       .object({
         brand_id: z.string().uuid(),
-        hook: z.string().min(1).max(200),
+        hook: z.string().min(1).max(200).optional(),
         caption: z.string().max(1000).optional(),
       })
       .parse(data),
@@ -64,7 +127,7 @@ export const renderNow = createServerFn({ method: "POST" })
 
     const { data: brand, error: brandErr } = await supabase
       .from("brands")
-      .select("id, name, template_id, brand_colors, brand_fonts, logo_url")
+      .select("id, name, template_id, brand_colors, brand_fonts, logo_url, knowledge_base")
       .eq("id", data.brand_id)
       .maybeSingle();
     if (brandErr) throw new Error(brandErr.message);
@@ -73,9 +136,24 @@ export const renderNow = createServerFn({ method: "POST" })
     const templateId = brand.template_id ?? TEMPLATES[0].id;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    // Auto-generate copy unless caller passed one in.
+    const copy = data.hook
+      ? { hook: data.hook, caption: data.caption ?? "", hashtags: [] as string[] }
+      : await generateCopy({
+          brandName: brand.name,
+          knowledgeBase: brand.knowledge_base,
+          product: null,
+        });
+
     const { data: reel, error: reelErr } = await supabaseAdmin
       .from("reels")
-      .insert({ brand_id: brand.id, hook: data.hook, caption: data.caption ?? null, status: "queued" })
+      .insert({
+        brand_id: brand.id,
+        hook: copy.hook,
+        caption: copy.caption || null,
+        hashtags: copy.hashtags,
+        status: "queued",
+      })
       .select("id")
       .single();
     if (reelErr) throw new Error(reelErr.message);
@@ -83,8 +161,8 @@ export const renderNow = createServerFn({ method: "POST" })
     const storagePath = `${userId}/${brand.id}/reels/${reel.id}.mp4`;
 
     const props: RenderProps = {
-      hook: data.hook,
-      caption: data.caption,
+      hook: copy.hook,
+      caption: copy.caption,
       brand: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         colors: { ...DEFAULT_COLORS, ...((brand.brand_colors as any) ?? {}) },
@@ -111,7 +189,11 @@ export const renderNow = createServerFn({ method: "POST" })
     if (jobErr) throw new Error(jobErr.message);
 
     await supabaseAdmin.from("reels").update({ render_job_id: job.id }).eq("id", reel.id);
-    await appendLog(supabaseAdmin, job.id, { level: "info", stage: "enqueue", message: "job created" });
+    await appendLog(supabaseAdmin, job.id, {
+      level: "info",
+      stage: "enqueue",
+      message: `job created with AI copy: "${copy.hook}"`,
+    });
 
     await dispatchJob(supabaseAdmin, {
       id: job.id,
@@ -122,7 +204,7 @@ export const renderNow = createServerFn({ method: "POST" })
       attempts: 0,
     });
 
-    return { reel_id: reel.id, job_id: job.id };
+    return { reel_id: reel.id, job_id: job.id, hook: copy.hook };
   });
 
 /**

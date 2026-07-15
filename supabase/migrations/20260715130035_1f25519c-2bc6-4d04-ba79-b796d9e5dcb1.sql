@@ -1,0 +1,1 @@
+DELETE FROM render_jobs WHERE status IN ('failed'); UPDATE reels SET status='failed' WHERE status='rendering';
