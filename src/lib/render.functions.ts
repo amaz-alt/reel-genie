@@ -252,20 +252,35 @@ async function generateStylePlan(input: {
   const key = process.env.LOVABLE_API_KEY;
   if (!key) return fallbackStylePlan(input.hook, input.seed);
 
+  // Build a compact, high-priority summary from the vision-analyzed references.
+  // The planner is instructed to MATCH this design language, not invent one.
+  const visionAnalyses = input.references
+    .map((r) => r.analysis)
+    .filter((a): a is Record<string, unknown> => Boolean(a && typeof a === "object"));
+
+  const referenceLanguage = visionAnalyses.length
+    ? [
+        `You have ${visionAnalyses.length} vision-analyzed reference reel(s). MATCH their design language.`,
+        "Aggregate visual language across references (majority vote on each dimension):",
+        ...visionAnalyses.map((a, i) => `Ref ${i + 1}: ${JSON.stringify(a)}`),
+      ].join("\n")
+    : input.references.length
+      ? `Reference vault heuristic notes:\n${input.references.map((r, i) => `${i + 1}. ${r.label ?? "ref"}${r.notes ? ` — ${r.notes}` : ""}`).join("\n")}`
+      : "No references. Default to clean editorial hierarchy with intentional empty space.";
+
   const sys = [
-    "You are not an After Effects template writer. You are a senior motion design director building a reusable typography system.",
-    "Return a design primitive plan for a 1080x1920 short-form reel hook.",
-    "Goal: reference-grade clarity, rhythm, hierarchy, and intentional empty space. Not more effects.",
-    "Think Figma Auto Layout / Canva Magic Design: choose primitives based on meaning.",
-    "Rules:",
-    "- Hero can be one word, two words, or a full phrase depending on meaning.",
-    "- Layout can be centered, left weighted, poster block, split, or rail — choose intentionally.",
-    "- Motion must protect readability: settle/pop/wipe/slide/cut only. No spin, shake, blur, random letters, chaos.",
-    "- Empty space is part of the design; don't fill the frame by default.",
-    "- Pacing must follow sentence meaning; important beats hold longer.",
-    "- Caption/hashtags/social copy must never appear in the video plan.",
-    "- Use brand colors as the system: base/invert/accent/primary backgrounds only.",
-    "Output STRICT JSON matching this TypeScript shape:",
+    "You are a senior motion-design director. Your job is to reverse-engineer the DESIGN LANGUAGE of the user's reference reels and generate a fresh, non-templated beat plan that feels like it belongs in the same visual universe.",
+    "You are NOT copying frames or captions. You are extracting reusable design intelligence: hierarchy, pacing, empty space, emphasis, casing, motion restraint, palette usage.",
+    "Return a design primitive plan for a 1080x1920 short-form reel.",
+    "HARD RULES:",
+    "- Hero can be 1 word, 2 words, or a full phrase — choose based on the sentence's meaning, not a fixed rule.",
+    "- Layout is intentional: centered, upper-left, lower-left, split-left, right-rail, full-phrase, or poster-block. Vary across beats to create rhythm.",
+    "- Motion transitions: settle/pop/wipe/slide/cut ONLY. Never chaotic (no spin/shake/blur).",
+    "- Empty space is a design element. Do not fill the frame by default.",
+    "- Pacing: important beats hold longer (holdWeight up to 1.8). Setup beats can be quicker (0.7-0.9).",
+    "- Match the reference language above: casing, weight, typography hierarchy, motion restraint, layout preference, palette usage.",
+    "- Never emit social captions or hashtags into the plan. Only the hook is on screen.",
+    "Output STRICT JSON matching this shape:",
     '{"version":"primitive-typography-v1","composition":{"canvasMood":"editorial|bold-poster|minimal|saas-clean|creator-caption","backgroundMode":"solid|split-field|framed-negative-space|accent-band|soft-panel","safeMargin":90},"typography":{"casing":"as-written|uppercase|title","displayWeight":900,"supportWeight":650,"tracking":0,"lineHeight":0.94},"beats":[{"text":"phrase","hero":["word or phrase parts"],"supportBefore":"","supportAfter":"","emphasis":"quiet|normal|strong|hero","layout":"center-stack|upper-left|lower-left|split-left|right-rail|full-phrase|poster-block","align":"center|left|right","holdWeight":1,"colorRole":"base|invert|accent-bg|primary-bg","emptySpace":"balanced|top-heavy|bottom-heavy|wide","transition":"settle|pop|wipe|cut|slide"}]}',
   ].join("\n");
 
@@ -273,13 +288,9 @@ async function generateStylePlan(input: {
     `Brand: ${input.brandName}`,
     input.knowledgeBase ? `Brand voice / instructions:\n${input.knowledgeBase}` : "",
     `Hook to design:\n${input.hook}`,
-    input.references.length
-      ? `Reference vault metadata (use as style inspiration; avoid copying filenames literally):\n${input.references
-          .map((r, i) => `${i + 1}. ${r.label ?? "reference"}${r.notes ? ` — ${r.notes}` : ""}`)
-          .join("\n")}`
-      : "Reference style target: clean high-performing creator/editorial reels with intentional hierarchy and readable motion.",
+    `REFERENCE VISUAL LANGUAGE (obey this):\n${referenceLanguage}`,
     `Creative seed: ${input.seed}`,
-    "Create 3–7 beats. Split by meaning, not by fixed word count.",
+    "Split the hook by MEANING into 3-7 beats. Vary layout across beats. Give powerful lines more hold weight. Return the JSON now.",
   ]
     .filter(Boolean)
     .join("\n\n");
