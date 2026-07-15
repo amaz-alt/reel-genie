@@ -137,7 +137,27 @@ async function generateCopy(input: {
   }
 }
 
-type ReferenceBrief = { label: string | null; notes: string | null };
+type ReferenceBrief = { label: string | null; notes: string | null; analysis?: Record<string, unknown> | null };
+
+/**
+ * Compute reel duration from copy length. Never force a short cram — every
+ * beat gets enough screen time to read comfortably.
+ *  <8 words   -> 8s
+ *  8-14       -> 11s
+ *  15-22      -> 15s
+ *  23-34      -> 20s
+ *  35-50      -> 25s
+ *  >50        -> 30s
+ */
+export function computeDurationSeconds(hook: string): number {
+  const words = String(hook ?? "").trim().split(/\s+/).filter(Boolean).length;
+  if (words <= 7) return 8;
+  if (words <= 14) return 11;
+  if (words <= 22) return 15;
+  if (words <= 34) return 20;
+  if (words <= 50) return 25;
+  return 30;
+}
 
 function fallbackStylePlan(hook: string, seed: number): TypographyStylePlan {
   const phrases = hook
