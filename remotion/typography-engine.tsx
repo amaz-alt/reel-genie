@@ -2,7 +2,6 @@ import {
   AbsoluteFill,
   Easing,
   interpolate,
-  spring,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
@@ -11,35 +10,15 @@ import type { BrandTokens, TypographyStylePlan } from "./brand";
 type BeatPlan = TypographyStylePlan["beats"][number];
 
 const CONTENT_STOP = new Set([
-  "the",
-  "a",
-  "an",
-  "to",
-  "of",
-  "in",
-  "on",
-  "for",
-  "and",
-  "or",
-  "but",
-  "is",
-  "are",
-  "was",
-  "were",
-  "be",
-  "been",
-  "at",
-  "by",
-  "with",
-  "as",
-  "it",
-  "this",
-  "that",
-  "you",
-  "your",
-  "we",
-  "our",
+  "the","a","an","to","of","in","on","for","and","or","but","is","are","was","were","be","been",
+  "at","by","with","as","it","this","that","you","your","we","our",
 ]);
+
+// Apple-like premium easing curves. No springs — springs feel bouncy and cheap
+// at this scale. Cinematic type moves with expo/quart out.
+const easeOutExpo = Easing.bezier(0.16, 1, 0.3, 1);
+const easeOutQuart = Easing.bezier(0.25, 1, 0.5, 1);
+const easeInQuart = Easing.bezier(0.5, 0, 0.75, 0);
 
 export type ScheduledBeat = BeatPlan & {
   from: number;
@@ -54,37 +33,36 @@ export function normalizePlan(hook: string, seed = 1, plan?: TypographyStylePlan
       composition: {
         canvasMood: plan.composition?.canvasMood ?? "editorial",
         backgroundMode: plan.composition?.backgroundMode ?? "solid",
-        safeMargin: clamp(plan.composition?.safeMargin ?? 90, 64, 140),
+        safeMargin: clamp(plan.composition?.safeMargin ?? 108, 80, 160),
       },
       typography: {
         casing: plan.typography?.casing ?? "as-written",
         displayWeight: clamp(plan.typography?.displayWeight ?? 900, 650, 950),
-        supportWeight: clamp(plan.typography?.supportWeight ?? 650, 450, 800),
-        tracking: Math.max(0, plan.typography?.tracking ?? 0),
-        lineHeight: clamp(plan.typography?.lineHeight ?? 0.94, 0.86, 1.12),
+        supportWeight: clamp(plan.typography?.supportWeight ?? 600, 450, 800),
+        tracking: plan.typography?.tracking ?? 0,
+        lineHeight: clamp(plan.typography?.lineHeight ?? 0.9, 0.82, 1.08),
       },
       beats: plan.beats.slice(0, 7).map((beat, index) => sanitizeBeat(beat, index, seed)),
     };
   }
-
   return buildFallbackPlan(hook, seed);
 }
 
 export function timingEngine(plan: TypographyStylePlan, totalFrames: number): ScheduledBeat[] {
-  const lead = 3;
-  const tail = 4;
+  // Cinematic breathing: longer lead-in and tail so the reel doesn't feel like
+  // it starts and ends mid-thought.
+  const lead = 6;
+  const tail = 8;
   const budget = Math.max(90, totalFrames - lead - tail);
   const weights = plan.beats.map((beat) => {
     const words = tokenize(beat.text);
     const heroWords = beat.hero.length;
-    const emphasis = beat.emphasis === "hero" ? 1.28 : beat.emphasis === "strong" ? 1.12 : beat.emphasis === "quiet" ? 0.88 : 1;
-    return Math.max(18, (beat.holdWeight ?? 1) * emphasis * (20 + words.length * 3.8 + heroWords * 2.4));
+    const emphasis = beat.emphasis === "hero" ? 1.35 : beat.emphasis === "strong" ? 1.15 : beat.emphasis === "quiet" ? 0.82 : 1;
+    return Math.max(20, (beat.holdWeight ?? 1) * emphasis * (22 + words.length * 4.2 + heroWords * 2.6));
   });
   const total = weights.reduce((sum, next) => sum + next, 0) || 1;
-  // Minimum readable hold ≈ 0.9s at 30fps. Cap generously so long reels
-  // actually breathe instead of clipping every beat to <2s.
-  const minPerBeat = 28;
-  const maxPerBeat = Math.max(90, Math.round(budget / Math.max(1, plan.beats.length)) + 30);
+  const minPerBeat = 34; // ~1.1s — enough to read + feel
+  const maxPerBeat = Math.max(96, Math.round(budget / Math.max(1, plan.beats.length)) + 36);
 
   let cursor = lead;
   const scheduled = plan.beats.map((beat, index) => {
@@ -93,8 +71,6 @@ export function timingEngine(plan: TypographyStylePlan, totalFrames: number): Sc
     cursor += duration;
     return out;
   });
-
-
 
   const used = cursor + tail;
   if (used < totalFrames && scheduled.length) {
@@ -115,14 +91,22 @@ export const PrimitiveBeat: React.FC<{
   const slot = layoutEngine(beat, plan, width, height);
   const motion = transitionEngine(beat, frame, fps);
 
+  // Optical centering: real designers push large type up ~2-3% of the height
+  // because descenders + heavy weights make math-center feel bottom-heavy.
+  const opticalShift = slot.justify === "center" ? -Math.round(height * 0.018) : 0;
+
+  const supportGap = Math.round(tokens.heroSize * 0.32);
+
   return (
     <AbsoluteFill style={{ backgroundColor: palette.bg, color: palette.fg, overflow: "hidden" }}>
       <BackgroundPrimitive beat={beat} plan={plan} palette={palette} />
+      <FramingMarks beat={beat} plan={plan} palette={palette} total={plan.beats.length} />
+
       <div
         style={{
           position: "absolute",
           left: slot.left,
-          top: slot.top,
+          top: slot.top + opticalShift,
           width: slot.width,
           minHeight: slot.minHeight,
           display: "flex",
@@ -130,75 +114,93 @@ export const PrimitiveBeat: React.FC<{
           justifyContent: slot.justify,
           alignItems: slot.alignItems,
           textAlign: slot.textAlign,
+          gap: 0,
           opacity: motion.opacity,
-          transform: `translate(${motion.x}px, ${motion.y}px) scale(${motion.scale})`,
-          clipPath: motion.clipPath,
+          transform: `translate3d(${motion.x}px, ${motion.y}px, 0)`,
+          willChange: "transform, opacity",
         }}
       >
         {tokens.supportBefore ? (
-          <TextLine
-            text={tokens.supportBefore}
-            kind="support"
-            color={palette.support}
-            fontFamily={brand.fonts.body || brand.fonts.display}
-            size={tokens.supportSize}
-            weight={plan.typography?.supportWeight ?? 650}
-            align={slot.textAlign}
-            delay={0}
-          />
+          <div style={{ marginBottom: supportGap }}>
+            <SupportLine
+              text={tokens.supportBefore}
+              color={palette.support}
+              accent={palette.accent}
+              fontFamily={brand.fonts.body || brand.fonts.display}
+              size={tokens.supportSize}
+              weight={plan.typography?.supportWeight ?? 600}
+              align={slot.textAlign}
+              delay={0}
+              variant="kicker"
+            />
+          </div>
         ) : null}
 
-        <TextLine
+        <HeroLine
           text={tokens.hero}
-          kind="hero"
           color={palette.hero}
           fontFamily={brand.fonts.display}
           size={tokens.heroSize}
           weight={plan.typography?.displayWeight ?? 900}
-          lineHeight={plan.typography?.lineHeight ?? 0.94}
+          lineHeight={plan.typography?.lineHeight ?? 0.9}
           align={slot.textAlign}
-          tracking={plan.typography?.tracking ?? 0}
-          delay={tokens.supportBefore ? 2 : 0}
+          tracking={tokens.heroTracking}
+          delay={tokens.supportBefore ? 3 : 0}
+          transition={beat.transition ?? "settle"}
         />
 
         {tokens.supportAfter ? (
-          <TextLine
-            text={tokens.supportAfter}
-            kind="support"
-            color={palette.support}
-            fontFamily={brand.fonts.body || brand.fonts.display}
-            size={tokens.supportSize}
-            weight={plan.typography?.supportWeight ?? 650}
-            align={slot.textAlign}
-            delay={tokens.supportBefore ? 4 : 2}
-          />
+          <div style={{ marginTop: supportGap }}>
+            <SupportLine
+              text={tokens.supportAfter}
+              color={palette.support}
+              accent={palette.accent}
+              fontFamily={brand.fonts.body || brand.fonts.display}
+              size={tokens.supportSize}
+              weight={plan.typography?.supportWeight ?? 600}
+              align={slot.textAlign}
+              delay={tokens.supportBefore ? 6 : 3}
+              variant="caption"
+            />
+          </div>
         ) : null}
       </div>
     </AbsoluteFill>
   );
 };
 
-const TextLine: React.FC<{
+const HeroLine: React.FC<{
   text: string;
-  kind: "hero" | "support";
   color: string;
   fontFamily: string;
   size: number;
   weight: number;
   align: "left" | "center" | "right";
   delay: number;
-  lineHeight?: number;
-  tracking?: number;
-}> = ({ text, kind, color, fontFamily, size, weight, align, delay, lineHeight = 1, tracking = 0 }) => {
+  lineHeight: number;
+  tracking: number;
+  transition: NonNullable<BeatPlan["transition"]>;
+}> = ({ text, color, fontFamily, size, weight, align, delay, lineHeight, tracking, transition }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const enter = spring({
-    frame: frame - delay,
-    fps,
-    config: { damping: kind === "hero" ? 22 : 28, stiffness: kind === "hero" ? 170 : 130, mass: 0.72 },
+  const t = Math.max(0, frame - delay);
+  // Longer, more cinematic reveal. 22 frames ≈ 0.73s of anticipation.
+  const enter = interpolate(t, [0, 22], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: easeOutExpo,
   });
-  const y = interpolate(enter, [0, 1], [kind === "hero" ? 18 : 10, 0]);
-  const scale = interpolate(enter, [0, 1], [kind === "hero" ? 0.965 : 0.99, 1]);
+
+  // Per-transition entry choreography — subtle, not decorative.
+  const yFrom = transition === "pop" ? 8 : transition === "slide" ? 0 : 28;
+  const xFrom = transition === "slide" ? -32 : 0;
+  const scaleFrom = transition === "pop" ? 0.965 : 0.995;
+
+  const y = interpolate(enter, [0, 1], [yFrom, 0]);
+  const x = interpolate(enter, [0, 1], [xFrom, 0]);
+  const scale = interpolate(enter, [0, 1], [scaleFrom, 1]);
+  const clipPath = transition === "wipe"
+    ? `inset(0 ${Math.round((1 - enter) * 100)}% 0 0)`
+    : undefined;
 
   return (
     <div
@@ -209,17 +211,168 @@ const TextLine: React.FC<{
         fontSize: size,
         fontWeight: weight,
         lineHeight,
-        letterSpacing: Math.max(0, tracking),
+        letterSpacing: tracking,
         textAlign: align,
         whiteSpace: "pre-wrap",
         overflowWrap: "normal",
-        opacity: clamp(enter, 0, kind === "hero" ? 1 : 0.92),
-        transform: `translateY(${y}px) scale(${scale})`,
-        transformOrigin: align === "left" ? "left center" : align === "right" ? "right center" : "center center",
+        fontFeatureSettings: '"ss01","liga","calt","kern"',
+        textRendering: "optimizeLegibility",
+        WebkitFontSmoothing: "antialiased",
+        opacity: enter,
+        transform: `translate3d(${x}px, ${y}px, 0) scale(${scale})`,
+        transformOrigin: align === "left" ? "0% 50%" : align === "right" ? "100% 50%" : "50% 50%",
+        clipPath,
       }}
     >
       {text}
     </div>
+  );
+};
+
+const SupportLine: React.FC<{
+  text: string;
+  color: string;
+  accent: string;
+  fontFamily: string;
+  size: number;
+  weight: number;
+  align: "left" | "center" | "right";
+  delay: number;
+  variant: "kicker" | "caption";
+}> = ({ text, color, accent, fontFamily, size, weight, align, delay, variant }) => {
+  const frame = useCurrentFrame();
+  const t = Math.max(0, frame - delay);
+  const enter = interpolate(t, [0, 16], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: easeOutQuart,
+  });
+  const y = interpolate(enter, [0, 1], [10, 0]);
+
+  // Kicker style — small caps, tracked, with a leading rule. This is what
+  // editorial refs use above hero words.
+  if (variant === "kicker") {
+    return (
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 18,
+          opacity: enter * 0.92,
+          transform: `translate3d(0, ${y}px, 0)`,
+          justifyContent: align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center",
+          width: "100%",
+        }}
+      >
+        <span
+          style={{
+            display: "inline-block",
+            width: Math.max(28, size * 0.9),
+            height: 2,
+            backgroundColor: accent,
+            opacity: 0.9,
+          }}
+        />
+        <span
+          style={{
+            color,
+            fontFamily,
+            fontSize: size,
+            fontWeight: weight,
+            letterSpacing: Math.max(4, size * 0.12),
+            textTransform: "uppercase",
+            fontFeatureSettings: '"ss01","kern","tnum"',
+          }}
+        >
+          {text}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        color,
+        fontFamily,
+        fontSize: size,
+        fontWeight: weight,
+        letterSpacing: 0.2,
+        lineHeight: 1.28,
+        textAlign: align,
+        opacity: enter * 0.85,
+        transform: `translate3d(0, ${y}px, 0)`,
+        fontFeatureSettings: '"kern","liga"',
+      }}
+    >
+      {text}
+    </div>
+  );
+};
+
+// Editorial framing marks — an index counter + a hairline rule at the bottom.
+// Persistent across beats so every frame reads as a finished composition, not
+// an intermediate render. Subtle, monochrome, brand-locked.
+const FramingMarks: React.FC<{
+  beat: ScheduledBeat;
+  plan: TypographyStylePlan;
+  palette: ReturnType<typeof paletteEngine>;
+  total: number;
+}> = ({ beat, palette, total }) => {
+  const frame = useCurrentFrame();
+  const enter = interpolate(frame, [0, 14], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: easeOutQuart,
+  });
+  const num = String(beat.index + 1).padStart(2, "0");
+  const totalNum = String(total).padStart(2, "0");
+  const markColor = palette.fg;
+
+  return (
+    <>
+      <div
+        style={{
+          position: "absolute",
+          top: 56,
+          left: 76,
+          right: 76,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          color: markColor,
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          fontSize: 20,
+          fontWeight: 500,
+          letterSpacing: 3,
+          textTransform: "uppercase",
+          opacity: enter * 0.55,
+        }}
+      >
+        <span>{num} — {totalNum}</span>
+        <span
+          style={{
+            display: "inline-block",
+            width: 44,
+            height: 2,
+            backgroundColor: markColor,
+            opacity: 0.7,
+          }}
+        />
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          left: 76,
+          right: 76,
+          bottom: 62,
+          height: 1,
+          backgroundColor: markColor,
+          opacity: enter * 0.22,
+        }}
+      />
+    </>
   );
 };
 
@@ -232,9 +385,9 @@ function buildFallbackPlan(hook: string, seed: number): TypographyStylePlan {
     composition: {
       canvasMood: seed % 3 === 0 ? "minimal" : seed % 3 === 1 ? "editorial" : "bold-poster",
       backgroundMode: seed % 4 === 0 ? "accent-band" : seed % 4 === 1 ? "framed-negative-space" : "solid",
-      safeMargin: 90,
+      safeMargin: 108,
     },
-    typography: { casing: "as-written", displayWeight: 900, supportWeight: 650, tracking: 0, lineHeight: 0.94 },
+    typography: { casing: "as-written", displayWeight: 900, supportWeight: 600, tracking: 0, lineHeight: 0.9 },
     beats: phrases.map((phrase, index) => {
       const words = tokenize(phrase);
       const hero = chooseHero(words);
@@ -292,41 +445,50 @@ function typographyEngine(beat: BeatPlan, plan: TypographyStylePlan, width: numb
   const supportBefore = applyCasing(before, plan.typography?.casing ?? "as-written");
   const supportAfter = applyCasing(after, plan.typography?.casing ?? "as-written");
   const heroChars = Math.max(2, heroText.length);
-  const available = (beat.layout === "split-left" || beat.layout === "upper-left" || beat.layout === "lower-left") ? width * 0.72 : width * 0.82;
-  const multiLine = heroWords.length > 2 || heroText.length > 15 || beat.layout === "full-phrase";
-  const factor = multiLine ? 0.34 : 0.53;
-  const emphasisBump = beat.emphasis === "hero" ? 1.12 : beat.emphasis === "strong" ? 1.04 : beat.emphasis === "quiet" ? 0.86 : 1;
-  const heroSize = clamp(Math.floor((available / (heroChars * factor)) * emphasisBump), 96, 310);
+  const isLeftLayout = beat.layout === "split-left" || beat.layout === "upper-left" || beat.layout === "lower-left";
+  const available = isLeftLayout ? width * 0.7 : width * 0.84;
+  const multiLine = heroWords.length > 2 || heroText.length > 14 || beat.layout === "full-phrase";
+  // Increased scale — hero should dominate the frame like a poster, not sit
+  // politely on the page. Thumbnail-worthiness demands presence.
+  const factor = multiLine ? 0.36 : 0.5;
+  const emphasisBump = beat.emphasis === "hero" ? 1.16 : beat.emphasis === "strong" ? 1.06 : beat.emphasis === "quiet" ? 0.84 : 1;
+  const heroSize = clamp(Math.floor((available / (heroChars * factor)) * emphasisBump), 108, 340);
+  // Real display-type tracking: negative at huge sizes, near-zero at small.
+  // This is what makes Anton/Neue Haas Display look premium instead of default.
+  const heroTracking = heroSize > 220 ? -heroSize * 0.028 : heroSize > 160 ? -heroSize * 0.02 : -heroSize * 0.008;
+
   return {
     hero: multiLine ? smartBreak(heroText, heroWords.length > 3 ? 3 : 2) : heroText,
     supportBefore,
     supportAfter,
     heroSize,
-    supportSize: clamp(Math.round(heroSize * (beat.emphasis === "quiet" ? 0.34 : 0.28)), 34, 82),
+    heroTracking,
+    // Tighter hierarchy ratio. Support is a whisper, hero is a shout.
+    supportSize: clamp(Math.round(heroSize * (beat.emphasis === "quiet" ? 0.22 : 0.18)), 28, 56),
   };
 }
 
 function layoutEngine(beat: BeatPlan, plan: TypographyStylePlan, width: number, height: number) {
-  const margin = clamp(plan.composition?.safeMargin ?? 90, 64, 140);
+  const margin = clamp(plan.composition?.safeMargin ?? 108, 80, 160);
   const layout = beat.layout ?? "center-stack";
   const empty = beat.emptySpace ?? "balanced";
   const textAlign = beat.align ?? (layout.includes("left") ? "left" : "center");
 
   const wideWidth = width - margin * 2;
-  const leftWidth = width * (empty === "wide" ? 0.66 : 0.72);
-  const centerTop = empty === "top-heavy" ? height * 0.42 : empty === "bottom-heavy" ? height * 0.53 : height * 0.47;
+  const leftWidth = width * (empty === "wide" ? 0.62 : 0.7);
+  const centerTop = empty === "top-heavy" ? height * 0.4 : empty === "bottom-heavy" ? height * 0.56 : height * 0.48;
 
   if (layout === "upper-left") {
-    return slot(margin, margin + height * 0.11, leftWidth, height * 0.54, "flex-start", "left");
+    return slot(margin, margin + height * 0.13, leftWidth, height * 0.5, "flex-start", "left");
   }
   if (layout === "lower-left") {
-    return slot(margin, height * 0.55, leftWidth, height * 0.34, "flex-end", "left");
+    return slot(margin, height * 0.56, leftWidth, height * 0.32, "flex-end", "left");
   }
   if (layout === "split-left") {
-    return slot(margin, height * 0.2, width * 0.58, height * 0.6, "center", "left");
+    return slot(margin, height * 0.22, width * 0.56, height * 0.56, "center", "left");
   }
   if (layout === "right-rail") {
-    return slot(width * 0.28, height * 0.24, width * 0.62, height * 0.52, "center", "right");
+    return slot(width * 0.3, height * 0.26, width * 0.6, height * 0.48, "center", "right");
   }
   if (layout === "poster-block") {
     return slot(margin, centerTop - height * 0.22, wideWidth, height * 0.44, "center", textAlign);
@@ -384,54 +546,88 @@ const BackgroundPrimitive: React.FC<{
   plan: TypographyStylePlan;
   palette: ReturnType<typeof paletteEngine>;
 }> = ({ beat, plan, palette }) => {
+  const frame = useCurrentFrame();
+  const enter = interpolate(frame, [0, 20], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: easeOutExpo,
+  });
   const mode = plan.composition?.backgroundMode ?? palette.mode;
+
   if (mode === "split-field" || beat.layout === "split-left") {
-    return <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "30%", backgroundColor: palette.accent }} />;
+    const w = interpolate(enter, [0, 1], [0, 32]);
+    return <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: `${w}%`, backgroundColor: palette.accent }} />;
   }
   if (mode === "accent-band") {
     const horizontal = beat.layout === "upper-left" || beat.layout === "lower-left";
+    // Thicker, more confident band. Reveals in from the edge instead of just
+    // appearing.
     return (
       <div
         style={{
           position: "absolute",
           left: horizontal ? 0 : "auto",
-          right: horizontal ? 0 : 76,
-          bottom: horizontal ? 140 : 0,
-          width: horizontal ? "100%" : 34,
-          height: horizontal ? 34 : "100%",
+          right: horizontal ? 0 : 88,
+          bottom: horizontal ? 168 : 0,
+          width: horizontal ? "100%" : 6,
+          height: horizontal ? 6 : "100%",
           backgroundColor: palette.accent,
+          transform: horizontal ? `scaleX(${enter})` : `scaleY(${enter})`,
+          transformOrigin: horizontal ? "left center" : "center top",
         }}
       />
     );
   }
   if (mode === "framed-negative-space") {
-    return <div style={{ position: "absolute", inset: 44, border: `8px solid ${palette.accent}`, opacity: 0.92 }} />;
+    return (
+      <div
+        style={{
+          position: "absolute",
+          inset: 44,
+          border: `2px solid ${palette.fg}`,
+          opacity: enter * 0.35,
+        }}
+      />
+    );
   }
   if (mode === "soft-panel") {
-    return <div style={{ position: "absolute", left: 70, right: 70, top: 260, bottom: 260, backgroundColor: withAlpha(palette.accent, 0.12) }} />;
+    return (
+      <div
+        style={{
+          position: "absolute",
+          left: 90,
+          right: 90,
+          top: 280,
+          bottom: 280,
+          backgroundColor: withAlpha(palette.accent, 0.1),
+          opacity: enter,
+        }}
+      />
+    );
   }
   return null;
 };
 
-function transitionEngine(beat: BeatPlan, frame: number, fps: number) {
-  const enter = spring({ frame, fps, config: { damping: 24, stiffness: 150, mass: 0.72 } });
-  const exitStart = Math.max(10, (beat as ScheduledBeat).duration - 7);
-  const exit = interpolate(frame, [exitStart, exitStart + 7], [0, 1], {
+function transitionEngine(beat: BeatPlan, frame: number, _fps: number) {
+  // Container-level motion is now intentionally quieter — HeroLine owns the
+  // per-transition choreography. This keeps supporting text from moving
+  // independently of the hero which was a big "AI-generated" tell.
+  const enter = interpolate(frame, [0, 18], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
-    easing: Easing.inOut(Easing.cubic),
+    easing: easeOutExpo,
   });
-  const transition = beat.transition ?? "settle";
-  const baseY = transition === "pop" ? interpolate(enter, [0, 1], [12, 0]) : interpolate(enter, [0, 1], [24, 0]);
-  const baseX = transition === "slide" ? interpolate(enter, [0, 1], [-28, 0]) : 0;
-  const scale = transition === "pop" ? interpolate(enter, [0, 1], [0.94, 1]) : interpolate(enter, [0, 1], [0.985, 1]);
-  const clipPath = transition === "wipe" ? `inset(0 ${Math.round((1 - enter) * 100)}% 0 0)` : undefined;
+  const exitStart = Math.max(12, (beat as ScheduledBeat).duration - 9);
+  const exit = interpolate(frame, [exitStart, exitStart + 9], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: easeInQuart,
+  });
   return {
-    opacity: clamp(enter, 0, 1) * (1 - exit),
-    x: baseX,
-    y: baseY - exit * 12,
-    scale,
-    clipPath,
+    opacity: enter * (1 - exit),
+    x: 0,
+    // Subtle upward exit drift — cinematic, not distracting.
+    y: -exit * 14,
   };
 }
 
