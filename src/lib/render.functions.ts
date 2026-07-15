@@ -62,14 +62,37 @@ async function generateCopy(input: {
       hashtags: ["#reels", "#brand", "#daily"],
     };
   }
-  const sys =
-    "You write short-form reel copy. Return STRICT JSON only, no prose, no markdown fences. " +
-    "Schema: {\"hook\": string (10-12 words max, punchy), \"caption\": string (max 220 chars, brand voice), \"hashtags\": string[] (5-8 relevant tags, each starts with #)}.";
+  const sys = [
+    "You are a world-class direct-response copywriter trained in the Copy Posse / Alex Cattoni school of conversion copywriting.",
+    "Your job: write a scroll-stopping short-form reel HOOK + caption + hashtags.",
+    "",
+    "HOOK RULES (this is 90% of the job):",
+    "• 8–12 words. Every word earns its place. Cut adjectives, hedges, brand names.",
+    "• Open with a pattern interrupt: a bold claim, a contrarian truth, a callout, a question, or a number.",
+    "• Use sensory, specific, punchy language. Concrete > abstract. Verbs > nouns.",
+    "• NEVER start with 'Discover', 'Introducing', 'Welcome to', or the brand name.",
+    "• Speak TO one person, not AT a crowd. Second person ('you', 'your') beats third person.",
+    "• Curiosity gap encouraged — tease the payoff, don't reveal it.",
+    "• Avoid clichés: 'game-changer', 'level up', 'unlock', 'elevate', 'unleash', 'in today's world'.",
+    "• No emojis in the hook. No hashtags in the hook. No quotation marks around the hook.",
+    "",
+    "CAPTION RULES:",
+    "• 1–2 sentences, max 220 chars. Extends the hook, doesn't repeat it. Ends with a soft CTA or intriguing question.",
+    "",
+    "HASHTAG RULES:",
+    "• 5–8 tags. Mix of niche + broad. Each starts with #. No spaces. Lowercase.",
+    "",
+    'OUTPUT: STRICT JSON only, no prose, no markdown fences. Schema: {"hook": string, "caption": string, "hashtags": string[]}',
+  ].join("\n");
+
   const user = [
     `Brand: ${input.brandName}`,
-    input.knowledgeBase ? `Brand voice / knowledge base:\n${input.knowledgeBase}` : "",
-    input.product ? `Product for today:\n${JSON.stringify(input.product)}` : "",
-    "Write one reel now.",
+    input.knowledgeBase
+      ? `Brand voice / positioning / audience:\n${input.knowledgeBase}`
+      : "",
+    input.product ? `Today's product / topic:\n${JSON.stringify(input.product)}` : "",
+    `Random creative seed (use this to pick a fresh angle, don't repeat past hooks): ${Math.floor(Math.random() * 1e9)}`,
+    "Write ONE reel now. Ship the JSON.",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -84,6 +107,7 @@ async function generateCopy(input: {
           { role: "system", content: sys },
           { role: "user", content: user },
         ],
+        temperature: 0.95,
         response_format: { type: "json_object" },
       }),
     });
@@ -92,7 +116,8 @@ async function generateCopy(input: {
     const text = j?.choices?.[0]?.message?.content ?? "";
     const parsed = JSON.parse(text);
     return {
-      hook: String(parsed.hook ?? "").slice(0, 200) || `${input.brandName}: try it today.`,
+      hook: String(parsed.hook ?? "").replace(/^["']|["']$/g, "").slice(0, 200) ||
+        `${input.brandName}: try it today.`,
       caption: String(parsed.caption ?? "").slice(0, 1000),
       hashtags: Array.isArray(parsed.hashtags)
         ? parsed.hashtags.map((t: unknown) => String(t)).slice(0, 12)
@@ -106,6 +131,8 @@ async function generateCopy(input: {
     };
   }
 }
+
+const MOTION_VARIANTS = ["stagger", "cascade", "bounce", "mask", "shuffle", "swing"] as const;
 
 /**
  * Enqueue + dispatch a render for a brand. Copy is AI-generated from the
