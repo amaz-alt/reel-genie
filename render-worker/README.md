@@ -28,8 +28,8 @@ Request body (`POST /render`) — self-contained, no DB lookups needed:
 ```
 
 The worker responds `202 { jobId }` immediately and processes asynchronously.
-When rendering finishes it PUTs the MP4 to `upload.signedUrl`, then POSTs the
-callback with an `x-render-signature` HMAC header.
+Current builds direct-write the result to Lovable storage/backend, so no inbound
+callback into the app is required.
 
 ## Deploy (Hostinger VPS, Ubuntu 24.04)
 
@@ -63,7 +63,7 @@ Then in Lovable, add the secret `VPS_RENDER_URL=https://render.yourdomain.com`.
 
 - Templates come from the sibling `../remotion/` folder in this repo. Pull
   the repo on the VPS to update templates; no code change on the worker.
-- The container installs Chromium via `@remotion/renderer`'s
-  `ensureBrowser()` on first run.
+- The container installs Chromium at image build time and warms Chromium + the
+  Remotion bundle on boot so the first real render does not pay that cost.
 - Zero state: restarts are safe; in-flight jobs Lovable considers timed out
   will be retried automatically.

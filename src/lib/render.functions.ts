@@ -513,7 +513,7 @@ async function dispatchJob(
     width: 1080,
     height: 1920,
     fps: 30,
-    durationInFrames: 210,
+    durationInFrames: 180,
     props: job.props,
     upload: { signedUrl: signed.signedUrl, path: job.storage_path },
     supabase: {

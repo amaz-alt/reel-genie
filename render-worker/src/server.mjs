@@ -1,5 +1,5 @@
 import Fastify from "fastify";
-import { renderJob, isInFlight, markInFlight, clearInFlight } from "./render.mjs";
+import { renderJob, isInFlight, markInFlight, clearInFlight, warmRenderer } from "./render.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const TOKEN = process.env.RENDER_WORKER_TOKEN;
@@ -19,7 +19,7 @@ app.addHook("onRequest", async (req, reply) => {
   }
 });
 
-app.get("/health", async () => ({ ok: true, version: "0.3.0" }));
+app.get("/health", async () => ({ ok: true, version: "0.4.0" }));
 
 app.post("/render", async (req, reply) => {
   const job = req.body;
@@ -44,4 +44,7 @@ app.post("/render", async (req, reply) => {
 
 app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
   app.log.info(`render-worker listening on :${PORT}`);
+  warmRenderer()
+    .then(() => app.log.info("renderer warmed: browser + bundle ready"))
+    .catch((err) => app.log.error({ err }, "renderer warmup failed"));
 });
