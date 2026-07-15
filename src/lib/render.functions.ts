@@ -547,13 +547,19 @@ async function dispatchJob(
     return false;
   }
 
+  // Duration is stashed on props by renderNow. Fall back to 8s for legacy jobs.
+  const propsDuration = Number(
+    (job.props as unknown as { durationInFrames?: number })?.durationInFrames,
+  );
+  const durationInFrames = Number.isFinite(propsDuration) && propsDuration >= 60 ? propsDuration : 240;
+
   const payload: RenderJobPayload = {
     jobId: job.id,
     templateId: job.template_id,
     width: 1080,
     height: 1920,
     fps: 30,
-    durationInFrames: 180,
+    durationInFrames,
     props: job.props,
     upload: { signedUrl: signed.signedUrl, path: job.storage_path },
     supabase: {
