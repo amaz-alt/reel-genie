@@ -187,9 +187,14 @@ export const renderNow = createServerFn({ method: "POST" })
 
     const storagePath = `${userId}/${brand.id}/reels/${reel.id}.mp4`;
 
+    const seed = Math.floor(Math.random() * 1e9);
+    const variant = MOTION_VARIANTS[Math.floor(Math.random() * MOTION_VARIANTS.length)];
+
     const props: RenderProps = {
       hook: copy.hook,
       caption: copy.caption,
+      seed,
+      variant,
       brand: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         colors: { ...DEFAULT_COLORS, ...((brand.brand_colors as any) ?? {}) },
