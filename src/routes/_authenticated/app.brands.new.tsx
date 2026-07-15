@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
+import { analyzeReferenceVideo } from "@/lib/reference-analysis";
 import { ArrowLeft, ArrowRight, Loader2, Upload, Check } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,8 @@ function NewBrand() {
   const [fonts, setFonts] = useState<Fonts>({ display: "Space Grotesk", body: "Inter" });
   const [logoUrl, setLogoUrl] = useState("");
   const [refReelUrl, setRefReelUrl] = useState("");
+  const [refReelPath, setRefReelPath] = useState("");
+  const [refReelNotes, setRefReelNotes] = useState("");
   const [uploading, setUploading] = useState<"logo" | "reference_reel" | null>(null);
 
   const create = useMutation({
@@ -54,6 +57,8 @@ function NewBrand() {
           brand_fonts: fonts,
           logo_url: logoUrl || "",
           reference_reel_url: refReelUrl || "",
+          reference_reel_path: refReelPath || undefined,
+          reference_reel_notes: refReelNotes || undefined,
         },
       }),
     onSuccess: ({ id }) => {
@@ -77,7 +82,11 @@ function NewBrand() {
       const { data } = await supabase.storage.from("brand-assets").createSignedUrl(path, 60 * 60 * 24 * 365);
       const url = data?.signedUrl ?? "";
       if (kind === "logo") setLogoUrl(url);
-      else setRefReelUrl(url);
+      else {
+        setRefReelUrl(url);
+        setRefReelPath(path);
+        setRefReelNotes(await analyzeReferenceVideo(file));
+      }
       toast.success(`${kind === "logo" ? "Logo" : "Reference reel"} uploaded`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
@@ -86,7 +95,7 @@ function NewBrand() {
     }
   }
 
-  const steps = ["Basics", "Product sheet", "Voice", "Template & brand", "Reference reel"];
+  const steps = ["Basics", "Product sheet", "Voice", "Style system", "Reference reel"];
 
   const canNext =
     (step === 0 && name.trim().length > 0) ||
@@ -192,7 +201,7 @@ function NewBrand() {
           {step === 3 && (
             <div className="space-y-6">
               <div>
-                <Label>Template</Label>
+                <Label>Render engine</Label>
                 <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
                   {TEMPLATES.map((t) => (
                     <button
@@ -279,8 +288,8 @@ function NewBrand() {
                 onFile={(f) => handleUpload(f, "reference_reel")}
               />
               <p className="text-xs text-muted-foreground">
-                The reference reel is your design brief for this brand. The chosen template is what actually
-                gets rendered, using your colors and fonts.
+                The reference reel is the design brief. New renders use its visual language through reusable
+                layout, hierarchy, timing, transition, and typography primitives.
               </p>
             </div>
           )}

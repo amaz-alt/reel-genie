@@ -30,6 +30,10 @@ function getBundle() {
   return bundlePromise;
 }
 
+export function warmRenderer() {
+  return Promise.all([ensureBrowser(), getBundle()]);
+}
+
 function makeLogger(jobId) {
   const entries = [];
   const push = (level, stage, message) => {
@@ -195,6 +199,9 @@ export async function renderJob(job) {
       },
       serveUrl,
       codec: "h264",
+      crf: Number(process.env.RENDER_CRF ?? 28),
+      concurrency: Number(process.env.RENDER_CONCURRENCY ?? 2),
+      muted: true,
       outputLocation: outPath,
       inputProps: job.props,
     });

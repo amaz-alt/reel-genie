@@ -25,6 +25,7 @@ import { ArrowLeft, Loader2, Save, Trash2, Upload, Wand2, X } from "lucide-react
 import { RenderJobsPanel } from "@/components/RenderJobsPanel";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { analyzeReferenceVideo } from "@/lib/reference-analysis";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const FONT_CHOICES = [
@@ -188,8 +189,9 @@ function BrandDetail() {
           contentType: file.type,
         });
       if (error && !signedUrl) throw error;
+      const notes = await analyzeReferenceVideo(file);
       await addBrandReference({
-        data: { brand_id: brandId, storage_path: path, label: file.name },
+        data: { brand_id: brandId, storage_path: path, label: file.name, notes },
       });
       toast.success("Reference added to vault");
       qc.invalidateQueries({ queryKey: ["brand-references", brandId] });
@@ -360,8 +362,8 @@ function BrandDetail() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                Upload up to 15 reference reels. The renderer draws motion inspiration from these
-                (variety of pace, animation styles) so no two outputs look identical.
+                  Upload up to 15 reference reels. New renders use them as the brand's visual-language vault
+                  for layout, hierarchy, timing, typography, and readable motion choices.
               </p>
               <div className="flex items-center gap-2">
                 <input
@@ -435,7 +437,7 @@ function BrandDetail() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="font-display text-lg">Template</CardTitle>
+              <CardTitle className="font-display text-lg">Render engine</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

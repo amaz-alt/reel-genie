@@ -19,7 +19,12 @@ export const listRenderJobs = createServerFn({ method: "GET" })
     return jobs ?? [];
   });
 
-import { getRenderService, type RenderJobPayload, type RenderProps } from "./render/RenderService";
+import {
+  getRenderService,
+  type RenderJobPayload,
+  type RenderProps,
+  type TypographyStylePlan,
+} from "./render/RenderService";
 import { TEMPLATES } from "./templates";
 
 const DEFAULT_COLORS = {
@@ -132,6 +137,194 @@ async function generateCopy(input: {
   }
 }
 
+type ReferenceBrief = { label: string | null; notes: string | null };
+
+function fallbackStylePlan(hook: string, seed: number): TypographyStylePlan {
+  const phrases = hook
+    .replace(/[“”"]/g, "")
+    .split(/[,;:.!?—–]+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const source = phrases.length ? phrases : [hook];
+  const layouts = ["center-stack", "upper-left", "poster-block", "lower-left", "split-left"] as const;
+  return {
+    version: "primitive-typography-v1",
+    composition: {
+      canvasMood: seed % 3 === 0 ? "minimal" : seed % 3 === 1 ? "editorial" : "bold-poster",
+      backgroundMode: seed % 4 === 0 ? "framed-negative-space" : seed % 4 === 1 ? "accent-band" : "solid",
+      safeMargin: 90,
+    },
+    typography: { casing: "as-written", displayWeight: 900, supportWeight: 650, tracking: 0, lineHeight: 0.94 },
+    beats: source.slice(0, 6).map((text, index) => {
+      const words = text.split(/\s+/).filter(Boolean);
+      const hero = chooseSemanticHero(words);
+      const start = words.findIndex((w) => cleanWord(w) === cleanWord(hero[0]));
+      return {
+        text,
+        hero,
+        supportBefore: start > 0 ? words.slice(0, start).join(" ") : "",
+        supportAfter: start >= 0 ? words.slice(start + hero.length).join(" ") : "",
+        emphasis: index === 0 ? "strong" : hero.length > 1 ? "hero" : "normal",
+        layout: layouts[(seed + index) % layouts.length],
+        align: layouts[(seed + index) % layouts.length].includes("left") ? "left" : "center",
+        holdWeight: 1 + Math.min(words.length, 8) * 0.06,
+        colorRole: index % 3 === 1 ? "invert" : index % 3 === 2 ? "accent-bg" : "base",
+        emptySpace: index % 2 ? "wide" : "balanced",
+        transition: index % 4 === 0 ? "pop" : index % 4 === 1 ? "settle" : index % 4 === 2 ? "wipe" : "slide",
+      } satisfies TypographyStylePlan["beats"][number];
+    }),
+  };
+}
+
+const STOP_WORDS = new Set([
+  "the",
+  "a",
+  "an",
+  "to",
+  "of",
+  "in",
+  "on",
+  "for",
+  "and",
+  "or",
+  "but",
+  "is",
+  "are",
+  "was",
+  "were",
+  "you",
+  "your",
+  "this",
+  "that",
+]);
+
+function cleanWord(word: string) {
+  return word.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function chooseSemanticHero(words: string[]) {
+  if (words.length <= 2) return words;
+  let best = 0;
+  let score = -Infinity;
+  words.forEach((word, index) => {
+    const bare = cleanWord(word);
+    const next = cleanWord(words[index + 1] ?? "");
+    const s = (STOP_WORDS.has(bare) ? -4 : bare.length) + (/\d/.test(bare) ? 3 : 0) + index * 0.18 + (next.length >= 5 ? 1 : 0);
+    if (s > score) {
+      score = s;
+      best = index;
+    }
+  });
+  const next = words[best + 1];
+  if (next && !STOP_WORDS.has(cleanWord(next)) && cleanWord(next).length >= 5 && words.length > 4) {
+    return [words[best], next];
+  }
+  return [words[best]];
+}
+
+async function generateStylePlan(input: {
+  hook: string;
+  brandName: string;
+  knowledgeBase: string | null;
+  references: ReferenceBrief[];
+  seed: number;
+}): Promise<TypographyStylePlan> {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) return fallbackStylePlan(input.hook, input.seed);
+
+  const sys = [
+    "You are not an After Effects template writer. You are a senior motion design director building a reusable typography system.",
+    "Return a design primitive plan for a 1080x1920 short-form reel hook.",
+    "Goal: reference-grade clarity, rhythm, hierarchy, and intentional empty space. Not more effects.",
+    "Think Figma Auto Layout / Canva Magic Design: choose primitives based on meaning.",
+    "Rules:",
+    "- Hero can be one word, two words, or a full phrase depending on meaning.",
+    "- Layout can be centered, left weighted, poster block, split, or rail — choose intentionally.",
+    "- Motion must protect readability: settle/pop/wipe/slide/cut only. No spin, shake, blur, random letters, chaos.",
+    "- Empty space is part of the design; don't fill the frame by default.",
+    "- Pacing must follow sentence meaning; important beats hold longer.",
+    "- Caption/hashtags/social copy must never appear in the video plan.",
+    "- Use brand colors as the system: base/invert/accent/primary backgrounds only.",
+    "Output STRICT JSON matching this TypeScript shape:",
+    '{"version":"primitive-typography-v1","composition":{"canvasMood":"editorial|bold-poster|minimal|saas-clean|creator-caption","backgroundMode":"solid|split-field|framed-negative-space|accent-band|soft-panel","safeMargin":90},"typography":{"casing":"as-written|uppercase|title","displayWeight":900,"supportWeight":650,"tracking":0,"lineHeight":0.94},"beats":[{"text":"phrase","hero":["word or phrase parts"],"supportBefore":"","supportAfter":"","emphasis":"quiet|normal|strong|hero","layout":"center-stack|upper-left|lower-left|split-left|right-rail|full-phrase|poster-block","align":"center|left|right","holdWeight":1,"colorRole":"base|invert|accent-bg|primary-bg","emptySpace":"balanced|top-heavy|bottom-heavy|wide","transition":"settle|pop|wipe|cut|slide"}]}',
+  ].join("\n");
+
+  const user = [
+    `Brand: ${input.brandName}`,
+    input.knowledgeBase ? `Brand voice / instructions:\n${input.knowledgeBase}` : "",
+    `Hook to design:\n${input.hook}`,
+    input.references.length
+      ? `Reference vault metadata (use as style inspiration; avoid copying filenames literally):\n${input.references
+          .map((r, i) => `${i + 1}. ${r.label ?? "reference"}${r.notes ? ` — ${r.notes}` : ""}`)
+          .join("\n")}`
+      : "Reference style target: clean high-performing creator/editorial reels with intentional hierarchy and readable motion.",
+    `Creative seed: ${input.seed}`,
+    "Create 3–7 beats. Split by meaning, not by fixed word count.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", "Lovable-API-Key": key },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: user },
+        ],
+        temperature: 0.82,
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!res.ok) throw new Error(`AI gateway ${res.status}`);
+    const j = await res.json();
+    const parsed = JSON.parse(j?.choices?.[0]?.message?.content ?? "{}");
+    return z
+      .object({
+        version: z.literal("primitive-typography-v1"),
+        composition: z
+          .object({
+            canvasMood: z.enum(["editorial", "bold-poster", "minimal", "saas-clean", "creator-caption"]).optional(),
+            backgroundMode: z.enum(["solid", "split-field", "framed-negative-space", "accent-band", "soft-panel"]).optional(),
+            safeMargin: z.number().optional(),
+          })
+          .optional(),
+        typography: z
+          .object({
+            casing: z.enum(["as-written", "uppercase", "title"]).optional(),
+            displayWeight: z.number().optional(),
+            supportWeight: z.number().optional(),
+            tracking: z.number().optional(),
+            lineHeight: z.number().optional(),
+          })
+          .optional(),
+        beats: z
+          .array(
+            z.object({
+              text: z.string().min(1),
+              hero: z.array(z.string().min(1)).min(1).max(5),
+              supportBefore: z.string().optional(),
+              supportAfter: z.string().optional(),
+              emphasis: z.enum(["quiet", "normal", "strong", "hero"]).optional(),
+              layout: z.enum(["center-stack", "upper-left", "lower-left", "split-left", "right-rail", "full-phrase", "poster-block"]).optional(),
+              align: z.enum(["center", "left", "right"]).optional(),
+              holdWeight: z.number().optional(),
+              colorRole: z.enum(["base", "invert", "accent-bg", "primary-bg"]).optional(),
+              emptySpace: z.enum(["balanced", "top-heavy", "bottom-heavy", "wide"]).optional(),
+              transition: z.enum(["settle", "pop", "wipe", "cut", "slide"]).optional(),
+            }),
+          )
+          .min(1)
+          .max(7),
+      })
+      .parse(parsed);
+  } catch {
+    return fallbackStylePlan(input.hook, input.seed);
+  }
+}
+
 const MOTION_VARIANTS = ["stagger", "cascade", "bounce", "mask", "shuffle", "swing"] as const;
 
 /**
@@ -154,7 +347,7 @@ export const renderNow = createServerFn({ method: "POST" })
 
     const { data: brand, error: brandErr } = await supabase
       .from("brands")
-      .select("id, name, template_id, brand_colors, brand_fonts, logo_url, knowledge_base")
+      .select("id, name, template_id, brand_colors, brand_fonts, logo_url, knowledge_base, reference_reel_url")
       .eq("id", data.brand_id)
       .maybeSingle();
     if (brandErr) throw new Error(brandErr.message);
@@ -189,12 +382,30 @@ export const renderNow = createServerFn({ method: "POST" })
 
     const seed = Math.floor(Math.random() * 1e9);
     const variant = MOTION_VARIANTS[Math.floor(Math.random() * MOTION_VARIANTS.length)];
+    const { data: refs } = await supabase
+      .from("brand_references")
+      .select("label, notes")
+      .eq("brand_id", brand.id)
+      .order("created_at", { ascending: false })
+      .limit(15);
+    const referenceBriefs: ReferenceBrief[] = [
+      ...(brand.reference_reel_url ? [{ label: "original reference reel", notes: "Primary visual direction reference" }] : []),
+      ...((refs ?? []) as ReferenceBrief[]),
+    ];
+    const stylePlan = await generateStylePlan({
+      hook: copy.hook,
+      brandName: brand.name,
+      knowledgeBase: brand.knowledge_base,
+      references: referenceBriefs,
+      seed,
+    });
 
     const props: RenderProps = {
       hook: copy.hook,
       // Caption is for the social post copy, NOT drawn inside the video.
       seed,
       variant,
+      stylePlan,
       brand: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         colors: { ...DEFAULT_COLORS, ...((brand.brand_colors as any) ?? {}) },
@@ -302,7 +513,7 @@ async function dispatchJob(
     width: 1080,
     height: 1920,
     fps: 30,
-    durationInFrames: 210,
+    durationInFrames: 180,
     props: job.props,
     upload: { signedUrl: signed.signedUrl, path: job.storage_path },
     supabase: {
