@@ -244,7 +244,7 @@ export const listBrandReferences = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
       .from("brand_references")
-      .select("id, storage_path, label, notes, created_at")
+      .select("id, storage_path, label, notes, analysis, created_at")
       .eq("brand_id", data.brand_id)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -259,6 +259,52 @@ export const listBrandReferences = createServerFn({ method: "GET" })
     return withUrls;
   });
 
+/**
+ * Vision-analyze frames from a reference reel with Gemini and return a
+ * structured design-language spec. Best-effort: returns null on any failure
+ * so callers can fall back to heuristic notes.
+ */
+async function visionAnalyzeReferenceFrames(frames: string[]): Promise<Record<string, unknown> | null> {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key || !frames.length) return null;
+  const sys = [
+    "You are a senior motion-design director reverse-engineering a short-form reel.",
+    "You will see 6 evenly-spaced frames from ONE reference reel.",
+    "Extract the reusable DESIGN LANGUAGE — not a description of contents.",
+    "Focus on: typography hierarchy, layout intention, empty-space usage, casing, emphasis pattern, motion restraint, transition style, pacing rhythm, palette usage.",
+    "Never suggest chaotic motion (spin/shake/blur). Prioritize readability.",
+    "Output STRICT JSON only, no prose. Schema:",
+    '{"canvasMood":"editorial|bold-poster|minimal|saas-clean|creator-caption","backgroundMode":"solid|split-field|framed-negative-space|accent-band|soft-panel","casing":"as-written|uppercase|title","displayWeight":700-950,"typographyHierarchy":"single-hero|dual-line|full-phrase|mixed","layoutPreference":"centered|left-weighted|split|mixed","emphasisPattern":"size-contrast|color-inversion|weight-shift|underline-accent","motionRestraint":"minimal|moderate|energetic","transitionStyle":"settle|pop|wipe|cut|slide","paletteUsage":"monochrome|dual-tone|accent-pop","avgWordsPerBeat":1-6,"pacingFeel":"slow|medium|fast","notes":"1-2 sentence human-readable summary of the reel\'s visual language"}',
+  ].join("\n");
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", "Lovable-API-Key": key },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: sys },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Analyze these 6 frames as one reel. Return the JSON spec." },
+              ...frames.slice(0, 6).map((url) => ({ type: "image_url", image_url: { url } })),
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.3,
+      }),
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    const text = j?.choices?.[0]?.message?.content ?? "";
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 export const addBrandReference = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
@@ -268,6 +314,8 @@ export const addBrandReference = createServerFn({ method: "POST" })
         storage_path: z.string().min(1),
         label: z.string().max(200).optional(),
         notes: z.string().max(2000).optional(),
+        /** Optional base64 data-URL frames from client for vision analysis. */
+        frames: z.array(z.string()).max(8).optional(),
       })
       .parse(data),
   )
@@ -279,16 +327,42 @@ export const addBrandReference = createServerFn({ method: "POST" })
     if ((count ?? 0) >= MAX_REFERENCES) {
       throw new Error(`Reference vault is full (max ${MAX_REFERENCES}). Delete one first.`);
     }
+    const analysis = data.frames?.length ? await visionAnalyzeReferenceFrames(data.frames) : null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await context.supabase.from("brand_references").insert({
       brand_id: data.brand_id,
       owner_id: context.userId,
       storage_path: data.storage_path,
       label: data.label ?? null,
       notes: data.notes ?? null,
-    });
+      analysis: analysis as any,
+    } as any);
     if (error) throw new Error(error.message);
-    return { ok: true };
+    return { ok: true, analyzed: Boolean(analysis) };
   });
+
+/**
+ * Re-analyze an existing reference from client-side frames. Used to backfill
+ * analysis for references uploaded before vision support existed.
+ */
+export const analyzeBrandReference = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z.object({ id: z.string().uuid(), frames: z.array(z.string()).min(1).max(8) }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const analysis = await visionAnalyzeReferenceFrames(data.frames);
+    if (!analysis) throw new Error("Vision analysis failed");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await context.supabase
+      .from("brand_references")
+      .update({ analysis: analysis as any } as any)
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true, analysis };
+  });
+
+
 
 export const deleteBrandReference = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
