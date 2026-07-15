@@ -1,0 +1,1 @@
+UPDATE render_jobs SET status='failed', last_error='superseded by worker v0.3.0 direct-write mode', completed_at=now() WHERE status='queued';
