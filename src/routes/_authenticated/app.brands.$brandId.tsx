@@ -189,9 +189,9 @@ function BrandDetail() {
           contentType: file.type,
         });
       if (error && !signedUrl) throw error;
-      const notes = await analyzeReferenceVideo(file);
+      const { notes, frames } = await analyzeReferenceVideo(file);
       await addBrandReference({
-        data: { brand_id: brandId, storage_path: path, label: file.name, notes },
+        data: { brand_id: brandId, storage_path: path, label: file.name, notes, frames },
       });
       toast.success("Reference added to vault");
       qc.invalidateQueries({ queryKey: ["brand-references", brandId] });
