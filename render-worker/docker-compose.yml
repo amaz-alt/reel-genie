@@ -14,10 +14,10 @@ services:
       - traefik
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:?TRAEFIK_NETWORK must be set in render-worker/.env}"
       # Router (HTTPS)
-      - "traefik.http.routers.reelforge-render.rule=Host(`${RENDER_HOST}`)"
-      - "traefik.http.routers.reelforge-render.entrypoints=websecure"
+      - "traefik.http.routers.reelforge-render.rule=Host(`${RENDER_HOST:?RENDER_HOST must be set in render-worker/.env}`)"
+      - "traefik.http.routers.reelforge-render.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
       - "traefik.http.routers.reelforge-render.tls=true"
       - "traefik.http.routers.reelforge-render.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
       - "traefik.http.routers.reelforge-render.service=reelforge-render"
