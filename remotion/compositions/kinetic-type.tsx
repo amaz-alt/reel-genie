@@ -5,40 +5,56 @@ import {
   useCurrentFrame,
   useVideoConfig,
   Easing,
+  Sequence,
 } from "remotion";
 import type { ReelProps } from "../brand";
 import { rng, VARIANTS } from "../brand";
 
 /**
- * Kinetic typography with 6 per-word motion variants + seeded variety.
- * Each render can pick a different variant AND a different seed, so no two
- * reels look identical even on the same template.
+ * TRUE kinetic typography. Words pop one at a time, hero-style, with:
+ *  - overshoot spring entry (scale 0.2 → 1.08 → 1)
+ *  - beat-synced background flashes on accent words
+ *  - subtle camera shake / rotate to keep the frame alive
+ *  - crossfade + slide between beats so it never feels static
+ *  - randomized layout offsets (left/right/center) per word
+ *  - per-word motion variants selected from the seed
  */
 export const KineticType: React.FC<ReelProps> = ({ hook, caption, brand, seed, variant }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames, width, height } = useVideoConfig();
-  const s = seed ?? 1;
-  const r = rng(s);
-  const chosen = variant ?? VARIANTS[Math.floor(r() * VARIANTS.length)];
+  const s = seed ?? Math.floor(Math.random() * 1e9);
+  const rGlobal = rng(s);
+  const chosen = variant ?? VARIANTS[Math.floor(rGlobal() * VARIANTS.length)];
 
   const words = hook.trim().split(/\s+/).filter(Boolean);
-  const accentIdx = words.length > 3 ? words.length - 1 - Math.floor(r() * 2) : words.length - 1;
+  if (words.length === 0) return <AbsoluteFill style={{ background: brand.colors.background }} />;
 
-  // Background: subtle animated gradient blob for depth.
-  const blobT = frame / durationInFrames;
-  const blobX = width * (0.15 + 0.7 * (0.5 + 0.5 * Math.sin(blobT * Math.PI * 2 + s)));
-  const blobY = height * (0.2 + 0.6 * (0.5 + 0.5 * Math.cos(blobT * Math.PI * 2 * 0.7 + s)));
+  // Budget: reserve last 30f for caption+outro, first 6f for intro punch.
+  const introFrames = 6;
+  const outroFrames = 30;
+  const beatBudget = Math.max(60, durationInFrames - introFrames - outroFrames);
+  const perWord = Math.max(14, Math.floor(beatBudget / words.length));
+  const overlap = Math.round(perWord * 0.35); // beats overlap for continuous motion
 
-  // Layout: alignment varies by seed (left / center / mixed).
-  const layoutRoll = r();
-  const align =
-    layoutRoll < 0.4 ? "flex-start" : layoutRoll < 0.75 ? "center" : "flex-start";
-  const justify =
-    layoutRoll < 0.4 ? "center" : layoutRoll < 0.75 ? "center" : "flex-end";
+  // Pick 1-2 "accent" words for hero emphasis (usually the last impactful ones).
+  const accentSet = new Set<number>();
+  if (words.length >= 2) accentSet.add(words.length - 1);
+  if (words.length >= 4) accentSet.add(words.length - 3);
 
-  // Font size scales down for longer hooks so they always fit.
-  const baseSize =
-    words.length <= 4 ? 168 : words.length <= 6 ? 138 : words.length <= 8 ? 118 : 100;
+  // Global camera shake (very subtle, always on).
+  const shakeX = Math.sin(frame * 0.31) * 4 + Math.sin(frame * 0.13 + 1.2) * 3;
+  const shakeY = Math.cos(frame * 0.27) * 3 + Math.sin(frame * 0.17 + 0.7) * 2;
+  const camScale = 1 + Math.sin(frame * 0.05) * 0.008;
+
+  // Background pulse on every beat.
+  const beatIndex = Math.min(
+    words.length - 1,
+    Math.max(0, Math.floor((frame - introFrames) / perWord)),
+  );
+  const beatLocal = (frame - introFrames) - beatIndex * perWord;
+  const flashStrength = accentSet.has(beatIndex)
+    ? interpolate(beatLocal, [0, 4, 14], [0, 0.35, 0], { extrapolateRight: "clamp" })
+    : interpolate(beatLocal, [0, 3, 10], [0, 0.12, 0], { extrapolateRight: "clamp" });
 
   return (
     <AbsoluteFill
@@ -46,37 +62,76 @@ export const KineticType: React.FC<ReelProps> = ({ hook, caption, brand, seed, v
         backgroundColor: brand.colors.background,
         color: brand.colors.text,
         fontFamily: brand.fonts.display,
+        overflow: "hidden",
       }}
     >
-      {/* soft accent blob */}
+      {/* beat flash overlay */}
+      <AbsoluteFill
+        style={{
+          background: brand.colors.accent,
+          opacity: flashStrength,
+          mixBlendMode: "multiply",
+        }}
+      />
+
+      {/* moving grain / gradient blob */}
       <AbsoluteFill>
         <div
           style={{
             position: "absolute",
-            left: blobX - 360,
-            top: blobY - 360,
-            width: 720,
-            height: 720,
+            left: width * (0.2 + 0.5 * (0.5 + 0.5 * Math.sin(frame * 0.02 + s))) - 400,
+            top: height * (0.2 + 0.5 * (0.5 + 0.5 * Math.cos(frame * 0.017 + s))) - 400,
+            width: 800,
+            height: 800,
             borderRadius: 9999,
             background: brand.colors.accent,
-            opacity: 0.14,
-            filter: "blur(120px)",
+            opacity: 0.18,
+            filter: "blur(140px)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            right: -200,
+            top: height * 0.55,
+            width: 700,
+            height: 700,
+            borderRadius: 9999,
+            background: brand.colors.primary,
+            opacity: 0.08,
+            filter: "blur(160px)",
           }}
         />
       </AbsoluteFill>
 
-      {/* diagonal accent bar sweeping in */}
+      {/* sweeping accent bars */}
       <AbsoluteFill>
         <div
           style={{
             position: "absolute",
             left: 0,
             right: 0,
-            top: height * 0.08,
-            height: 8,
+            top: 180,
+            height: 10,
             background: brand.colors.accent,
             transformOrigin: "left center",
-            transform: `scaleX(${interpolate(frame, [4, 22], [0, 1], {
+            transform: `scaleX(${interpolate(frame, [2, 18], [0, 1], {
+              extrapolateRight: "clamp",
+              easing: Easing.out(Easing.cubic),
+            })})`,
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 240,
+            height: 6,
+            background: brand.colors.text,
+            opacity: 0.35,
+            transformOrigin: "right center",
+            transform: `scaleX(${interpolate(frame, [8, 26], [0, 1], {
               extrapolateRight: "clamp",
               easing: Easing.out(Easing.cubic),
             })})`,
@@ -84,276 +139,243 @@ export const KineticType: React.FC<ReelProps> = ({ hook, caption, brand, seed, v
         />
       </AbsoluteFill>
 
+      {/* HERO WORD STAGE — one word at a time, big, centered, punchy */}
       <AbsoluteFill
         style={{
-          padding: "160px 96px 200px",
-          justifyContent: justify,
-          alignItems: align,
+          transform: `translate(${shakeX}px, ${shakeY}px) scale(${camScale})`,
         }}
       >
-        <div
+        {words.map((word, i) => {
+          const start = introFrames + i * perWord;
+          const duration = perWord + overlap; // overlap with next
+          return (
+            <Sequence key={i} from={start} durationInFrames={duration}>
+              <HeroWord
+                word={word}
+                index={i}
+                total={words.length}
+                accent={accentSet.has(i)}
+                variant={chosen}
+                seed={s + i * 131}
+                colors={brand.colors}
+                fonts={brand.fonts}
+                perWord={perWord}
+              />
+            </Sequence>
+          );
+        })}
+      </AbsoluteFill>
+
+      {/* caption reveal near end */}
+      {caption ? (
+        <AbsoluteFill
           style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "0.18em 0.32em",
-            lineHeight: 1.02,
-            maxWidth: "100%",
-            justifyContent: align === "center" ? "center" : "flex-start",
+            padding: "0 96px 220px",
+            justifyContent: "flex-end",
+            alignItems: "flex-start",
           }}
         >
-          {words.map((w, i) => (
-            <Word
-              key={i}
-              word={w}
-              index={i}
-              total={words.length}
-              variant={chosen}
-              accent={i === accentIdx}
-              seed={s + i * 97}
-              size={baseSize}
-              colors={brand.colors}
-              frame={frame}
-              fps={fps}
-              duration={durationInFrames}
-            />
-          ))}
-        </div>
-
-        {caption ? (
           <div
             style={{
-              marginTop: 56,
               fontFamily: brand.fonts.body,
-              fontSize: 40,
-              lineHeight: 1.35,
-              maxWidth: 820,
-              opacity: interpolate(frame, [30, 55], [0, 0.85], {
-                extrapolateRight: "clamp",
-              }),
-              transform: `translateY(${interpolate(frame, [30, 55], [16, 0], {
-                extrapolateRight: "clamp",
-              })}px)`,
+              fontSize: 42,
+              lineHeight: 1.3,
+              maxWidth: 900,
               color: brand.colors.text,
+              opacity: interpolate(
+                frame,
+                [durationInFrames - outroFrames, durationInFrames - outroFrames + 14],
+                [0, 0.9],
+                { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+              ),
+              transform: `translateY(${interpolate(
+                frame,
+                [durationInFrames - outroFrames, durationInFrames - outroFrames + 14],
+                [24, 0],
+                { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+              )}px)`,
             }}
           >
             {caption}
           </div>
-        ) : null}
-      </AbsoluteFill>
+        </AbsoluteFill>
+      ) : null}
 
-      {/* footer accent */}
-      <AbsoluteFill>
-        <div
-          style={{
-            position: "absolute",
-            left: 96,
-            bottom: 96,
-            fontFamily: brand.fonts.body,
-            fontSize: 28,
-            letterSpacing: 8,
-            textTransform: "uppercase",
-            opacity: interpolate(frame, [60, 90], [0, 0.55], { extrapolateRight: "clamp" }),
-            color: brand.colors.text,
-          }}
-        >
-          ● ● ●
-        </div>
-      </AbsoluteFill>
+      {/* progress bar at bottom */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          bottom: 0,
+          height: 8,
+          width: `${(frame / durationInFrames) * 100}%`,
+          background: brand.colors.accent,
+        }}
+      />
     </AbsoluteFill>
   );
 };
 
-type WordProps = {
+type HeroWordProps = {
   word: string;
   index: number;
   total: number;
-  variant: (typeof VARIANTS)[number];
   accent: boolean;
+  variant: (typeof VARIANTS)[number];
   seed: number;
-  size: number;
   colors: { primary: string; accent: string; background: string; text: string };
-  frame: number;
-  fps: number;
-  duration: number;
+  fonts: { display: string; body: string };
+  perWord: number;
 };
 
-const Word: React.FC<WordProps> = ({
+const HeroWord: React.FC<HeroWordProps> = ({
   word,
-  index,
-  total,
-  variant,
   accent,
+  variant,
   seed,
-  size,
   colors,
-  frame,
-  fps,
-  duration,
+  fonts,
+  perWord,
+  index,
 }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
   const r = rng(seed);
-  const delay = 4 + index * (variant === "cascade" || variant === "shuffle" ? 3 : 5);
-  const local = frame - delay;
-  const sp = spring({ frame: local, fps, config: { damping: 14, stiffness: 140, mass: 0.9 } });
 
-  // Exit animation in the last ~20 frames of the clip.
-  const exitStart = duration - 22;
-  const exitP = interpolate(frame, [exitStart, duration], [0, 1], {
+  // Font size scales with word length so long words still fill the frame.
+  const len = word.length;
+  const baseSize = accent
+    ? len <= 4 ? 340 : len <= 7 ? 280 : len <= 10 ? 220 : 180
+    : len <= 4 ? 260 : len <= 7 ? 220 : len <= 10 ? 180 : 150;
+
+  // Layout offset varies per word so it never feels centered/static.
+  const layoutRoll = r();
+  const align =
+    accent ? "center" : layoutRoll < 0.33 ? "flex-start" : layoutRoll < 0.66 ? "center" : "flex-end";
+  const vAlign = layoutRoll < 0.5 ? "center" : layoutRoll < 0.8 ? "flex-start" : "flex-end";
+
+  // ENTRY — punchy overshoot.
+  const entry = spring({
+    frame,
+    fps,
+    config: { damping: 10, stiffness: 220, mass: 0.7 },
+  });
+  // EXIT — slide/scale out in last ~30% of beat.
+  const exitStart = Math.floor(perWord * 0.72);
+  const exit = interpolate(frame, [exitStart, exitStart + 10], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
-  let transform = "";
-  let opacity = 1;
-  let filter: string | undefined;
+  const rotateJitter = (r() - 0.5) * (accent ? 4 : 10);
+  const exitDirection = r() < 0.5 ? -1 : 1;
+
+  // Per-letter reveal.
   const letters = word.split("");
 
-  const jitter = (r() - 0.5) * 40;
+  return (
+    <AbsoluteFill
+      style={{
+        padding: "160px 80px 220px",
+        justifyContent: vAlign,
+        alignItems: align,
+      }}
+    >
+      <div
+        style={{
+          transform: `translateY(${exit * -120 * exitDirection}px) scale(${
+            interpolate(entry, [0, 0.6, 1], [0.2, 1.15, 1]) * (1 - exit * 0.4)
+          }) rotate(${rotateJitter * (1 - entry)}deg)`,
+          opacity: (1 - exit) * interpolate(entry, [0, 0.2], [0, 1], { extrapolateRight: "clamp" }),
+          filter: `blur(${interpolate(entry, [0, 0.4], [12, 0], {
+            extrapolateRight: "clamp",
+          }) + exit * 8}px)`,
+          display: "flex",
+          gap: 0,
+          lineHeight: 0.92,
+        }}
+      >
+        {letters.map((ch, li) => {
+          const letterDelay = li * 1.4;
+          const lspring = spring({
+            frame: frame - letterDelay,
+            fps,
+            config: { damping: 12, stiffness: 260, mass: 0.6 },
+          });
+          const yOff = interpolate(lspring, [0, 1], [80, 0]);
+          const rot = interpolate(lspring, [0, 1], [li % 2 === 0 ? -14 : 14, 0]);
 
-  switch (variant) {
-    case "stagger": {
-      const y = interpolate(sp, [0, 1], [110, 0]);
-      opacity = interpolate(sp, [0, 1], [0, 1]);
-      transform = `translateY(${y + exitP * -60}px)`;
-      filter = `blur(${interpolate(sp, [0, 1], [8, 0])}px)`;
-      break;
-    }
-    case "cascade": {
-      // letter-by-letter reveal
-      return (
-        <span
-          style={{
-            display: "inline-flex",
-            fontSize: size,
-            fontWeight: 900,
-            letterSpacing: -3,
-            color: accent ? colors.accent : colors.text,
-          }}
-        >
-          {letters.map((ch, li) => {
-            const ld = delay + li * 2;
-            const lsp = spring({
-              frame: frame - ld,
-              fps,
-              config: { damping: 12, stiffness: 180 },
-            });
+          // Variant-specific letter treatment (adds variety).
+          let extra = "";
+          if (variant === "shuffle") {
+            const p = Math.min(1, Math.max(0, (frame - li * 0.8) / 10));
+            const shown =
+              p < 1
+                ? String.fromCharCode(65 + Math.floor(rng(seed + li + frame)() * 26))
+                : ch;
             return (
               <span
                 key={li}
                 style={{
                   display: "inline-block",
-                  transform: `translateY(${interpolate(lsp, [0, 1], [60, 0])}px) rotate(${interpolate(
-                    lsp,
-                    [0, 1],
-                    [-25, 0],
-                  )}deg)`,
-                  opacity: interpolate(lsp, [0, 1], [0, 1]) * (1 - exitP),
+                  fontSize: baseSize,
+                  fontWeight: 900,
+                  letterSpacing: -6,
+                  color: accent ? colors.accent : colors.text,
+                  transform: `translateY(${yOff}px)`,
+                  opacity: interpolate(lspring, [0, 1], [0, 1]),
+                  fontVariantNumeric: "tabular-nums",
                 }}
               >
-                {ch}
+                {shown}
               </span>
             );
-          })}
-        </span>
-      );
-    }
-    case "bounce": {
-      const scale = interpolate(sp, [0, 1], [0.4, 1]);
-      opacity = interpolate(sp, [0, 1], [0, 1]);
-      transform = `scale(${scale * (1 - exitP * 0.3)}) rotate(${interpolate(sp, [0, 1], [
-        jitter,
-        0,
-      ])}deg)`;
-      break;
-    }
-    case "mask": {
-      opacity = 1 - exitP;
-      transform = `translateY(${interpolate(sp, [0, 1], [80, 0])}px)`;
-      return (
-        <span
+          }
+          if (variant === "swing") extra = ` rotate(${rot}deg)`;
+          if (variant === "bounce") extra = ` scale(${interpolate(lspring, [0, 1], [0.3, 1])})`;
+
+          return (
+            <span
+              key={li}
+              style={{
+                display: "inline-block",
+                fontSize: baseSize,
+                fontWeight: 900,
+                letterSpacing: -6,
+                color: accent ? colors.accent : colors.text,
+                transform: `translateY(${yOff}px)${extra}`,
+                opacity: interpolate(lspring, [0, 1], [0, 1]),
+                textShadow: accent
+                  ? `0 8px 0 ${colors.text}, 0 14px 30px ${colors.accent}55`
+                  : `0 4px 0 ${colors.text}22`,
+                fontStyle: variant === "cascade" && li % 3 === 0 ? "italic" : "normal",
+              }}
+            >
+              {ch}
+            </span>
+          );
+        })}
+      </div>
+
+      {/* accent tag under hero words */}
+      {accent ? (
+        <div
           style={{
-            display: "inline-block",
-            overflow: "hidden",
-            paddingBottom: 12,
+            marginTop: 32,
+            fontFamily: fonts.body,
+            fontSize: 34,
+            letterSpacing: 10,
+            textTransform: "uppercase",
+            color: colors.text,
+            opacity: interpolate(entry, [0.4, 1], [0, 0.7], { extrapolateRight: "clamp" }) * (1 - exit),
+            transform: `translateY(${interpolate(entry, [0.4, 1], [20, 0], {
+              extrapolateRight: "clamp",
+            })}px)`,
           }}
         >
-          <span
-            style={{
-              display: "inline-block",
-              fontSize: size,
-              fontWeight: 900,
-              letterSpacing: -3,
-              color: accent ? colors.accent : colors.text,
-              transform,
-              opacity,
-            }}
-          >
-            {word}
-          </span>
-        </span>
-      );
-    }
-    case "shuffle": {
-      // scramble to reveal
-      const progress = Math.min(1, Math.max(0, local / 14));
-      const shuffled =
-        progress < 1
-          ? letters
-              .map((ch, li) =>
-                li / letters.length < progress
-                  ? ch
-                  : String.fromCharCode(65 + Math.floor(rng(seed + li + frame)() * 26)),
-              )
-              .join("")
-          : word;
-      opacity = interpolate(local, [0, 6], [0, 1], { extrapolateRight: "clamp" }) * (1 - exitP);
-      transform = `translateY(${interpolate(local, [0, 10], [30, 0], {
-        extrapolateRight: "clamp",
-      })}px)`;
-      return (
-        <span
-          style={{
-            fontSize: size,
-            fontWeight: 900,
-            letterSpacing: -3,
-            color: accent ? colors.accent : colors.text,
-            transform,
-            opacity,
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          {shuffled}
-        </span>
-      );
-    }
-    case "swing": {
-      const rot = interpolate(sp, [0, 1], [index % 2 === 0 ? -30 : 30, 0]);
-      opacity = interpolate(sp, [0, 1], [0, 1]) * (1 - exitP);
-      transform = `translateY(${interpolate(sp, [0, 1], [50, 0])}px) rotate(${rot}deg)`;
-      break;
-    }
-  }
-
-  const scaleEmph = accent
-    ? 1 + 0.04 * Math.sin(((frame - delay) / fps) * Math.PI * 2)
-    : 1;
-
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        fontSize: size,
-        fontWeight: 900,
-        letterSpacing: -3,
-        color: accent ? colors.accent : colors.text,
-        transform: `${transform} scale(${scaleEmph})`,
-        opacity,
-        filter,
-        textShadow: accent
-          ? `0 6px 0 ${colors.accent}22, 0 2px 20px ${colors.accent}22`
-          : undefined,
-      }}
-    >
-      {word}
-    </span>
+          ▍ {index === 0 ? "watch this" : "read that again"}
+        </div>
+      ) : null}
+    </AbsoluteFill>
   );
 };
