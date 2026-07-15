@@ -1,0 +1,1 @@
+alter table public.brand_references add column if not exists analysis jsonb;

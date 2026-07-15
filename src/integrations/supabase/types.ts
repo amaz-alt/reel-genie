@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       brand_references: {
         Row: {
+          analysis: Json | null
           brand_id: string
           created_at: string
           id: string
@@ -25,6 +26,7 @@ export type Database = {
           storage_path: string
         }
         Insert: {
+          analysis?: Json | null
           brand_id: string
           created_at?: string
           id?: string
@@ -34,6 +36,7 @@ export type Database = {
           storage_path: string
         }
         Update: {
+          analysis?: Json | null
           brand_id?: string
           created_at?: string
           id?: string
