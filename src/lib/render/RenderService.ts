@@ -18,6 +18,8 @@ export type RenderProps = {
   caption?: string;
   brand: BrandTokens;
   product?: Record<string, unknown>;
+  seed?: number;
+  variant?: "stagger" | "cascade" | "bounce" | "mask" | "shuffle" | "swing";
 };
 
 export type RenderJobPayload = {
