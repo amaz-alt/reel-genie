@@ -137,7 +137,27 @@ async function generateCopy(input: {
   }
 }
 
-type ReferenceBrief = { label: string | null; notes: string | null };
+type ReferenceBrief = { label: string | null; notes: string | null; analysis?: Record<string, unknown> | null };
+
+/**
+ * Compute reel duration from copy length. Never force a short cram — every
+ * beat gets enough screen time to read comfortably.
+ *  <8 words   -> 8s
+ *  8-14       -> 11s
+ *  15-22      -> 15s
+ *  23-34      -> 20s
+ *  35-50      -> 25s
+ *  >50        -> 30s
+ */
+export function computeDurationSeconds(hook: string): number {
+  const words = String(hook ?? "").trim().split(/\s+/).filter(Boolean).length;
+  if (words <= 7) return 8;
+  if (words <= 14) return 11;
+  if (words <= 22) return 15;
+  if (words <= 34) return 20;
+  if (words <= 50) return 25;
+  return 30;
+}
 
 function fallbackStylePlan(hook: string, seed: number): TypographyStylePlan {
   const phrases = hook
@@ -232,20 +252,35 @@ async function generateStylePlan(input: {
   const key = process.env.LOVABLE_API_KEY;
   if (!key) return fallbackStylePlan(input.hook, input.seed);
 
+  // Build a compact, high-priority summary from the vision-analyzed references.
+  // The planner is instructed to MATCH this design language, not invent one.
+  const visionAnalyses = input.references
+    .map((r) => r.analysis)
+    .filter((a): a is Record<string, unknown> => Boolean(a && typeof a === "object"));
+
+  const referenceLanguage = visionAnalyses.length
+    ? [
+        `You have ${visionAnalyses.length} vision-analyzed reference reel(s). MATCH their design language.`,
+        "Aggregate visual language across references (majority vote on each dimension):",
+        ...visionAnalyses.map((a, i) => `Ref ${i + 1}: ${JSON.stringify(a)}`),
+      ].join("\n")
+    : input.references.length
+      ? `Reference vault heuristic notes:\n${input.references.map((r, i) => `${i + 1}. ${r.label ?? "ref"}${r.notes ? ` — ${r.notes}` : ""}`).join("\n")}`
+      : "No references. Default to clean editorial hierarchy with intentional empty space.";
+
   const sys = [
-    "You are not an After Effects template writer. You are a senior motion design director building a reusable typography system.",
-    "Return a design primitive plan for a 1080x1920 short-form reel hook.",
-    "Goal: reference-grade clarity, rhythm, hierarchy, and intentional empty space. Not more effects.",
-    "Think Figma Auto Layout / Canva Magic Design: choose primitives based on meaning.",
-    "Rules:",
-    "- Hero can be one word, two words, or a full phrase depending on meaning.",
-    "- Layout can be centered, left weighted, poster block, split, or rail — choose intentionally.",
-    "- Motion must protect readability: settle/pop/wipe/slide/cut only. No spin, shake, blur, random letters, chaos.",
-    "- Empty space is part of the design; don't fill the frame by default.",
-    "- Pacing must follow sentence meaning; important beats hold longer.",
-    "- Caption/hashtags/social copy must never appear in the video plan.",
-    "- Use brand colors as the system: base/invert/accent/primary backgrounds only.",
-    "Output STRICT JSON matching this TypeScript shape:",
+    "You are a senior motion-design director. Your job is to reverse-engineer the DESIGN LANGUAGE of the user's reference reels and generate a fresh, non-templated beat plan that feels like it belongs in the same visual universe.",
+    "You are NOT copying frames or captions. You are extracting reusable design intelligence: hierarchy, pacing, empty space, emphasis, casing, motion restraint, palette usage.",
+    "Return a design primitive plan for a 1080x1920 short-form reel.",
+    "HARD RULES:",
+    "- Hero can be 1 word, 2 words, or a full phrase — choose based on the sentence's meaning, not a fixed rule.",
+    "- Layout is intentional: centered, upper-left, lower-left, split-left, right-rail, full-phrase, or poster-block. Vary across beats to create rhythm.",
+    "- Motion transitions: settle/pop/wipe/slide/cut ONLY. Never chaotic (no spin/shake/blur).",
+    "- Empty space is a design element. Do not fill the frame by default.",
+    "- Pacing: important beats hold longer (holdWeight up to 1.8). Setup beats can be quicker (0.7-0.9).",
+    "- Match the reference language above: casing, weight, typography hierarchy, motion restraint, layout preference, palette usage.",
+    "- Never emit social captions or hashtags into the plan. Only the hook is on screen.",
+    "Output STRICT JSON matching this shape:",
     '{"version":"primitive-typography-v1","composition":{"canvasMood":"editorial|bold-poster|minimal|saas-clean|creator-caption","backgroundMode":"solid|split-field|framed-negative-space|accent-band|soft-panel","safeMargin":90},"typography":{"casing":"as-written|uppercase|title","displayWeight":900,"supportWeight":650,"tracking":0,"lineHeight":0.94},"beats":[{"text":"phrase","hero":["word or phrase parts"],"supportBefore":"","supportAfter":"","emphasis":"quiet|normal|strong|hero","layout":"center-stack|upper-left|lower-left|split-left|right-rail|full-phrase|poster-block","align":"center|left|right","holdWeight":1,"colorRole":"base|invert|accent-bg|primary-bg","emptySpace":"balanced|top-heavy|bottom-heavy|wide","transition":"settle|pop|wipe|cut|slide"}]}',
   ].join("\n");
 
@@ -253,13 +288,9 @@ async function generateStylePlan(input: {
     `Brand: ${input.brandName}`,
     input.knowledgeBase ? `Brand voice / instructions:\n${input.knowledgeBase}` : "",
     `Hook to design:\n${input.hook}`,
-    input.references.length
-      ? `Reference vault metadata (use as style inspiration; avoid copying filenames literally):\n${input.references
-          .map((r, i) => `${i + 1}. ${r.label ?? "reference"}${r.notes ? ` — ${r.notes}` : ""}`)
-          .join("\n")}`
-      : "Reference style target: clean high-performing creator/editorial reels with intentional hierarchy and readable motion.",
+    `REFERENCE VISUAL LANGUAGE (obey this):\n${referenceLanguage}`,
     `Creative seed: ${input.seed}`,
-    "Create 3–7 beats. Split by meaning, not by fixed word count.",
+    "Split the hook by MEANING into 3-7 beats. Vary layout across beats. Give powerful lines more hold weight. Return the JSON now.",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -384,13 +415,14 @@ export const renderNow = createServerFn({ method: "POST" })
     const variant = MOTION_VARIANTS[Math.floor(Math.random() * MOTION_VARIANTS.length)];
     const { data: refs } = await supabase
       .from("brand_references")
-      .select("label, notes")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .select("label, notes, analysis" as any)
       .eq("brand_id", brand.id)
       .order("created_at", { ascending: false })
       .limit(15);
     const referenceBriefs: ReferenceBrief[] = [
-      ...(brand.reference_reel_url ? [{ label: "original reference reel", notes: "Primary visual direction reference" }] : []),
-      ...((refs ?? []) as ReferenceBrief[]),
+      ...(brand.reference_reel_url ? [{ label: "original reference reel", notes: "Primary visual direction reference", analysis: null }] : []),
+      ...((refs ?? []) as unknown as ReferenceBrief[]),
     ];
     const stylePlan = await generateStylePlan({
       hook: copy.hook,
@@ -399,6 +431,10 @@ export const renderNow = createServerFn({ method: "POST" })
       references: referenceBriefs,
       seed,
     });
+
+    // Dynamic duration: sentence length drives screen time. Never cram.
+    const durationSeconds = computeDurationSeconds(copy.hook);
+    const durationInFrames = durationSeconds * 30;
 
     const props: RenderProps = {
       hook: copy.hook,
@@ -415,6 +451,10 @@ export const renderNow = createServerFn({ method: "POST" })
       },
     };
 
+    // Persist duration on props so dispatch (which reads from DB for retries)
+    // knows how long to render. Worker reads job.durationInFrames from top of payload.
+    const propsWithDuration = { ...props, durationInFrames };
+
     const { data: job, error: jobErr } = await supabaseAdmin
       .from("render_jobs")
       .insert({
@@ -422,7 +462,7 @@ export const renderNow = createServerFn({ method: "POST" })
         reel_id: reel.id,
         template_id: templateId,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        props: props as any,
+        props: propsWithDuration as any,
         storage_path: storagePath,
         status: "queued",
         max_attempts: MAX_ATTEMPTS,
@@ -435,19 +475,19 @@ export const renderNow = createServerFn({ method: "POST" })
     await appendLog(supabaseAdmin, job.id, {
       level: "info",
       stage: "enqueue",
-      message: `job created with AI copy: "${copy.hook}"`,
+      message: `job created: "${copy.hook}" — ${durationSeconds}s (${referenceBriefs.filter(r=>r.analysis).length} analyzed refs)`,
     });
 
     await dispatchJob(supabaseAdmin, {
       id: job.id,
       reel_id: reel.id,
       template_id: templateId,
-      props,
+      props: propsWithDuration,
       storage_path: storagePath,
       attempts: 0,
     });
 
-    return { reel_id: reel.id, job_id: job.id, hook: copy.hook };
+    return { reel_id: reel.id, job_id: job.id, hook: copy.hook, duration_seconds: durationSeconds };
   });
 
 /**
@@ -507,13 +547,19 @@ async function dispatchJob(
     return false;
   }
 
+  // Duration is stashed on props by renderNow. Fall back to 8s for legacy jobs.
+  const propsDuration = Number(
+    (job.props as unknown as { durationInFrames?: number })?.durationInFrames,
+  );
+  const durationInFrames = Number.isFinite(propsDuration) && propsDuration >= 60 ? propsDuration : 240;
+
   const payload: RenderJobPayload = {
     jobId: job.id,
     templateId: job.template_id,
     width: 1080,
     height: 1920,
     fps: 30,
-    durationInFrames: 180,
+    durationInFrames,
     props: job.props,
     upload: { signedUrl: signed.signedUrl, path: job.storage_path },
     supabase: {

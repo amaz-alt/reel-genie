@@ -85,7 +85,8 @@ function NewBrand() {
       else {
         setRefReelUrl(url);
         setRefReelPath(path);
-        setRefReelNotes(await analyzeReferenceVideo(file));
+        const { notes } = await analyzeReferenceVideo(file);
+        setRefReelNotes(notes);
       }
       toast.success(`${kind === "logo" ? "Logo" : "Reference reel"} uploaded`);
     } catch (e) {
