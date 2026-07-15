@@ -1,8 +1,8 @@
 export const TEMPLATES = [
   {
     id: "kinetic-type",
-    name: "Kinetic Typography",
-    description: "Bold, word-by-word hook animation on a solid brand color. Best for punchy statements.",
+    name: "AI Typography Engine",
+    description: "Dynamic layout, hierarchy, pacing, and motion primitives planned per hook and reference style.",
     swatch: "linear-gradient(135deg,#111 0%,#111 60%,#ff3b30 60%,#ff3b30 100%)",
   },
   {

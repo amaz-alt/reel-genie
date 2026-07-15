@@ -360,8 +360,8 @@ function BrandDetail() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                Upload up to 15 reference reels. The renderer draws motion inspiration from these
-                (variety of pace, animation styles) so no two outputs look identical.
+                  Upload up to 15 reference reels. New renders use them as the brand's visual-language vault
+                  for layout, hierarchy, timing, typography, and readable motion choices.
               </p>
               <div className="flex items-center gap-2">
                 <input
@@ -435,7 +435,7 @@ function BrandDetail() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="font-display text-lg">Template</CardTitle>
+              <CardTitle className="font-display text-lg">Render engine</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

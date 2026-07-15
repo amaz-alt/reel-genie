@@ -86,7 +86,7 @@ function NewBrand() {
     }
   }
 
-  const steps = ["Basics", "Product sheet", "Voice", "Template & brand", "Reference reel"];
+  const steps = ["Basics", "Product sheet", "Voice", "Style system", "Reference reel"];
 
   const canNext =
     (step === 0 && name.trim().length > 0) ||
@@ -192,7 +192,7 @@ function NewBrand() {
           {step === 3 && (
             <div className="space-y-6">
               <div>
-                <Label>Template</Label>
+                <Label>Render engine</Label>
                 <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
                   {TEMPLATES.map((t) => (
                     <button
@@ -279,8 +279,8 @@ function NewBrand() {
                 onFile={(f) => handleUpload(f, "reference_reel")}
               />
               <p className="text-xs text-muted-foreground">
-                The reference reel is your design brief for this brand. The chosen template is what actually
-                gets rendered, using your colors and fonts.
+                The reference reel is the design brief. New renders use its visual language through reusable
+                layout, hierarchy, timing, transition, and typography primitives.
               </p>
             </div>
           )}
