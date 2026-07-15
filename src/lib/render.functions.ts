@@ -415,13 +415,14 @@ export const renderNow = createServerFn({ method: "POST" })
     const variant = MOTION_VARIANTS[Math.floor(Math.random() * MOTION_VARIANTS.length)];
     const { data: refs } = await supabase
       .from("brand_references")
-      .select("label, notes")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .select("label, notes, analysis" as any)
       .eq("brand_id", brand.id)
       .order("created_at", { ascending: false })
       .limit(15);
     const referenceBriefs: ReferenceBrief[] = [
-      ...(brand.reference_reel_url ? [{ label: "original reference reel", notes: "Primary visual direction reference" }] : []),
-      ...((refs ?? []) as ReferenceBrief[]),
+      ...(brand.reference_reel_url ? [{ label: "original reference reel", notes: "Primary visual direction reference", analysis: null }] : []),
+      ...((refs ?? []) as unknown as ReferenceBrief[]),
     ];
     const stylePlan = await generateStylePlan({
       hook: copy.hook,
@@ -430,6 +431,10 @@ export const renderNow = createServerFn({ method: "POST" })
       references: referenceBriefs,
       seed,
     });
+
+    // Dynamic duration: sentence length drives screen time. Never cram.
+    const durationSeconds = computeDurationSeconds(copy.hook);
+    const durationInFrames = durationSeconds * 30;
 
     const props: RenderProps = {
       hook: copy.hook,
@@ -446,6 +451,10 @@ export const renderNow = createServerFn({ method: "POST" })
       },
     };
 
+    // Persist duration on props so dispatch (which reads from DB for retries)
+    // knows how long to render. Worker reads job.durationInFrames from top of payload.
+    const propsWithDuration = { ...props, durationInFrames };
+
     const { data: job, error: jobErr } = await supabaseAdmin
       .from("render_jobs")
       .insert({
@@ -453,7 +462,7 @@ export const renderNow = createServerFn({ method: "POST" })
         reel_id: reel.id,
         template_id: templateId,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        props: props as any,
+        props: propsWithDuration as any,
         storage_path: storagePath,
         status: "queued",
         max_attempts: MAX_ATTEMPTS,
@@ -466,19 +475,19 @@ export const renderNow = createServerFn({ method: "POST" })
     await appendLog(supabaseAdmin, job.id, {
       level: "info",
       stage: "enqueue",
-      message: `job created with AI copy: "${copy.hook}"`,
+      message: `job created: "${copy.hook}" — ${durationSeconds}s (${referenceBriefs.filter(r=>r.analysis).length} analyzed refs)`,
     });
 
     await dispatchJob(supabaseAdmin, {
       id: job.id,
       reel_id: reel.id,
       template_id: templateId,
-      props,
+      props: propsWithDuration,
       storage_path: storagePath,
       attempts: 0,
     });
 
-    return { reel_id: reel.id, job_id: job.id, hook: copy.hook };
+    return { reel_id: reel.id, job_id: job.id, hook: copy.hook, duration_seconds: durationSeconds };
   });
 
 /**
