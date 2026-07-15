@@ -359,7 +359,7 @@ export const analyzeBrandReference = createServerFn({ method: "POST" })
       .update({ analysis: analysis as any } as any)
       .eq("id", data.id);
     if (error) throw new Error(error.message);
-    return { ok: true, analysis };
+    return { ok: true as const, analysis: analysis as unknown as Record<string, string | number | boolean | null> };
   });
 
 
