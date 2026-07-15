@@ -81,6 +81,18 @@ export function timingEngine(plan: TypographyStylePlan, totalFrames: number): Sc
     return Math.max(18, (beat.holdWeight ?? 1) * emphasis * (20 + words.length * 3.8 + heroWords * 2.4));
   });
   const total = weights.reduce((sum, next) => sum + next, 0) || 1;
+  // Minimum readable hold ≈ 0.9s at 30fps. Cap generously so long reels
+  // actually breathe instead of clipping every beat to <2s.
+  const minPerBeat = 28;
+  const maxPerBeat = Math.max(90, Math.round(budget / Math.max(1, plan.beats.length)) + 30);
+
+  let cursor = lead;
+  const scheduled = plan.beats.map((beat, index) => {
+    const duration = clamp(Math.round((weights[index] / total) * budget), minPerBeat, maxPerBeat);
+    const out = { ...beat, from: cursor, duration, index };
+    cursor += duration;
+    return out;
+  });
 
   let cursor = lead;
   const scheduled = plan.beats.map((beat, index) => {
