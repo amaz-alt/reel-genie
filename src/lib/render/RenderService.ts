@@ -13,6 +13,35 @@ export type BrandTokens = {
   logoUrl?: string | null;
 };
 
+export type TypographyStylePlan = {
+  version: "primitive-typography-v1";
+  composition?: {
+    canvasMood?: "editorial" | "bold-poster" | "minimal" | "saas-clean" | "creator-caption";
+    backgroundMode?: "solid" | "split-field" | "framed-negative-space" | "accent-band" | "soft-panel";
+    safeMargin?: number;
+  };
+  typography?: {
+    casing?: "as-written" | "uppercase" | "title";
+    displayWeight?: number;
+    supportWeight?: number;
+    tracking?: number;
+    lineHeight?: number;
+  };
+  beats: Array<{
+    text: string;
+    hero: string[];
+    supportBefore?: string;
+    supportAfter?: string;
+    emphasis?: "quiet" | "normal" | "strong" | "hero";
+    layout?: "center-stack" | "upper-left" | "lower-left" | "split-left" | "right-rail" | "full-phrase" | "poster-block";
+    align?: "center" | "left" | "right";
+    holdWeight?: number;
+    colorRole?: "base" | "invert" | "accent-bg" | "primary-bg";
+    emptySpace?: "balanced" | "top-heavy" | "bottom-heavy" | "wide";
+    transition?: "settle" | "pop" | "wipe" | "cut" | "slide";
+  }>;
+};
+
 export type RenderProps = {
   hook: string;
   caption?: string;
@@ -20,6 +49,7 @@ export type RenderProps = {
   product?: Record<string, unknown>;
   seed?: number;
   variant?: "stagger" | "cascade" | "bounce" | "mask" | "shuffle" | "swing";
+  stylePlan?: TypographyStylePlan;
 };
 
 export type RenderJobPayload = {
