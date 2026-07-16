@@ -26,16 +26,15 @@ function fitFontSize(word: string) {
 
 function handleFromBrand(name?: string | null) {
   if (!name) return "";
-  return `@${name.toLowerCase().replace(/[^a-z0-9]+/g, "")}`.slice(0, 24);
+  const cleaned = name.startsWith("@") ? name.slice(1) : name;
+  return `@${cleaned.toLowerCase().replace(/[^a-z0-9._]+/g, "")}`.slice(0, 28);
 }
 
-export const MotionPoster: React.FC<ReelProps> = ({ hook, brand }) => {
+export const MotionPoster: React.FC<ReelProps> = ({ hook, brand, handle: handleProp }) => {
   const { durationInFrames } = useVideoConfig();
   const yellow = brand.colors.accent || YELLOW_FALLBACK;
   const black = brand.colors.primary || BLACK_FALLBACK;
-  const handle = handleFromBrand(brand.fonts ? (brand as unknown as { name?: string }).name : "");
-  // brand.name isn't part of BrandTokens; pull from logoUrl-adjacent brand identity if present.
-  // Fallback silently — the reference watermark is decoration, the beats carry the design.
+  const handle = handleFromBrand(handleProp);
 
   const words = hook.trim().split(/\s+/).filter(Boolean);
   const beats = words.length ? words : ["hook"];
