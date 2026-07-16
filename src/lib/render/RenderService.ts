@@ -46,6 +46,7 @@ export type RenderProps = {
   hook: string;
   caption?: string;
   brand: BrandTokens;
+  handle?: string | null;
   product?: Record<string, unknown>;
   seed?: number;
   variant?: "stagger" | "cascade" | "bounce" | "mask" | "shuffle" | "swing";

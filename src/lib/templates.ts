@@ -1,5 +1,11 @@
 export const TEMPLATES = [
   {
+    id: "motion-poster",
+    name: "Motion Poster (yp.motionstudio)",
+    description: "Hardcoded recreation of the yellow/black hard-cut kinetic poster reference. One hero word per beat, tiny context words, watermark. No easing.",
+    swatch: "linear-gradient(135deg,#F5E63B 0%,#F5E63B 50%,#0a0a0a 50%,#0a0a0a 100%)",
+  },
+  {
     id: "kinetic-type",
     name: "AI Typography Engine",
     description: "Dynamic layout, hierarchy, pacing, and motion primitives planned per hook and reference style.",

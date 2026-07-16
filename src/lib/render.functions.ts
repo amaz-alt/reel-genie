@@ -384,7 +384,9 @@ export const renderNow = createServerFn({ method: "POST" })
     if (brandErr) throw new Error(brandErr.message);
     if (!brand) throw new Error("Brand not found");
 
-    const templateId = brand.template_id ?? TEMPLATES[0].id;
+    // Reference recreation lock: force the hardcoded motion-poster template
+    // until it hits ~95% visual similarity with the reference. See docs.
+    const templateId = "motion-poster";
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // Auto-generate copy unless caller passed one in.
@@ -432,16 +434,21 @@ export const renderNow = createServerFn({ method: "POST" })
       seed,
     });
 
-    // Dynamic duration: sentence length drives screen time. Never cram.
-    const durationSeconds = computeDurationSeconds(copy.hook);
+    // Duration for motion-poster: ~0.75s per word, clamped 6-14s. Matches the
+    // reference reel's cut cadence (11 beats in 8.7s).
+    const wordCount = String(copy.hook).trim().split(/\s+/).filter(Boolean).length;
+    const durationSeconds =
+      templateId === "motion-poster"
+        ? Math.max(6, Math.min(14, Math.round(wordCount * 0.75)))
+        : computeDurationSeconds(copy.hook);
     const durationInFrames = durationSeconds * 30;
 
     const props: RenderProps = {
       hook: copy.hook,
-      // Caption is for the social post copy, NOT drawn inside the video.
       seed,
       variant,
       stylePlan,
+      handle: brand.name ? `@${brand.name}` : null,
       brand: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         colors: { ...DEFAULT_COLORS, ...((brand.brand_colors as any) ?? {}) },
