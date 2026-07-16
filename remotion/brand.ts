@@ -37,6 +37,8 @@ export type ReelProps = {
   hook: string;
   caption?: string;
   brand: BrandTokens;
+  /** Brand handle rendered as watermark, e.g. "@brandname". */
+  handle?: string | null;
   product?: Record<string, unknown>;
   /** Deterministic PRNG seed — different value = different motion instance. */
   seed?: number;
