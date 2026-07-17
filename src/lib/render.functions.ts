@@ -49,55 +49,83 @@ async function appendLog(admin: any, jobId: string, entry: Omit<LogEntry, "at">)
   await admin.from("render_jobs").update({ logs }).eq("id", jobId);
 }
 
+type ScriptBeat = {
+  layout: "single" | "stack";
+  lines: Array<{ text: string; size: "small" | "hero" }>;
+  hold?: number;
+};
+
+type CopyResult = {
+  hook: string;
+  caption: string;
+  hashtags: string[];
+  script: ScriptBeat[];
+};
+
 /**
- * Generate hook + caption + hashtags via Lovable AI using the brand's
- * knowledge base as the voice guide. Falls back to a sane default if the
- * gateway is unreachable so a render is never blocked on copy.
+ * Structured copywriter — Alex Cattoni / Copy Posse pain-point storytelling.
+ * Emits a full on-screen SCRIPT broken into hierarchy-aware beats (kicker +
+ * hero + coda), not just a single hook. The composition renders one beat at
+ * a time with size contrast to match the reference reels.
  */
 async function generateCopy(input: {
   brandName: string;
   knowledgeBase: string | null;
   product?: Record<string, unknown> | null;
-}): Promise<{ hook: string; caption: string; hashtags: string[] }> {
+}): Promise<CopyResult> {
   const key = process.env.LOVABLE_API_KEY;
-  if (!key) {
-    return {
-      hook: `${input.brandName}: small change, big result.`,
-      caption: `Discover what makes ${input.brandName} different.`,
-      hashtags: ["#reels", "#brand", "#daily"],
-    };
-  }
+  const fallback: CopyResult = {
+    hook: "the truth is most of us picked comfort over the work that would have changed everything.",
+    caption: "The uncomfortable stuff is where the change lives.",
+    hashtags: ["#mindset", "#growth", "#truth", "#discipline", "#reels"],
+    script: [
+      { layout: "stack", lines: [{ text: "the", size: "small" }, { text: "truth is", size: "hero" }] },
+      { layout: "single", lines: [{ text: "most of us", size: "hero" }] },
+      { layout: "stack", lines: [{ text: "picked", size: "small" }, { text: "comfort", size: "hero" }] },
+      { layout: "stack", lines: [{ text: "over the", size: "small" }, { text: "work", size: "hero" }] },
+      { layout: "single", lines: [{ text: "that would have", size: "hero" }] },
+      { layout: "single", lines: [{ text: "changed", size: "hero" }] },
+      { layout: "single", lines: [{ text: "everything.", size: "hero" }] },
+    ],
+  };
+  if (!key) return fallback;
+
   const sys = [
-    "You are a world-class direct-response copywriter trained in the Copy Posse / Alex Cattoni school of conversion copywriting.",
-    "Your job: write a scroll-stopping short-form reel HOOK + caption + hashtags.",
+    "You are a senior direct-response copywriter trained in the Alex Cattoni / Copy Posse school and in short-form kinetic typography reels.",
+    "You are writing one 18–22 second reel. The output is not a slogan or a hook — it is a COMPLETE STORYTELLING SENTENCE broken into on-screen beats.",
     "",
-    "HOOK RULES (this is 90% of the job):",
-    "• 8–12 words. Every word earns its place. Cut adjectives, hedges, brand names.",
-    "• Open with a pattern interrupt: a bold claim, a contrarian truth, a callout, a question, or a number.",
-    "• Use sensory, specific, punchy language. Concrete > abstract. Verbs > nouns.",
-    "• NEVER start with 'Discover', 'Introducing', 'Welcome to', or the brand name.",
-    "• Speak TO one person, not AT a crowd. Second person ('you', 'your') beats third person.",
-    "• Curiosity gap encouraged — tease the payoff, don't reveal it.",
-    "• Avoid clichés: 'game-changer', 'level up', 'unlock', 'elevate', 'unleash', 'in today's world'.",
-    "• No emojis in the hook. No hashtags in the hook. No quotation marks around the hook.",
+    "COPY RULES (Copy Posse):",
+    "• Speak like a real person mid-thought, not a marketer. No slogans, no rhyme, no cliches ('game-changer', 'level up', 'unlock', 'elevate', 'unleash').",
+    "• Indirect storytelling that makes the viewer realise their own mistake, current situation, or pain point. Never accuse; observe.",
+    "• Use specific concrete details: numbers, timeframes, a mistake, a small realisation. Concrete beats abstract.",
+    "• One second-person voice ('you', 'your') OR one first-person confession ('I', 'we'). Pick one and stay consistent.",
+    "• The complete sentence should read out loud like something said to a friend after a hard week — not a caption.",
+    "• Length: total sentence 22–34 words across 7–11 beats. Never a single word per beat unless it lands like a hammer.",
     "",
-    "CAPTION RULES:",
-    "• 1–2 sentences, max 220 chars. Extends the hook, doesn't repeat it. Ends with a soft CTA or intriguing question.",
+    "BEAT / SCRIPT RULES (this is how the reel renders):",
+    "• Split the sentence into 7–11 beats that read together as one continuous thought when watched in sequence.",
+    "• Each beat has a `layout`:",
+    "    - \"single\": one line, centered, hero-sized. Use for a punchy word or short phrase.",
+    "    - \"stack\": 2–3 lines with SIZE CONTRAST. Small connective words (\"the\", \"of\", \"but if\", \"over\", \"is\") get size:\"small\"; the meaty noun/verb gets size:\"hero\".",
+    "• Aim for a rhythm: mix single beats with stack beats. Do NOT make every beat a stack; do NOT make every beat a single.",
+    "• `hold` is a relative weight (0.7 = quick beat, 1.0 = normal, 1.5 = lingering emphasis). Give punchline beats more hold.",
+    "• Preserve punctuation on the final beat (period, question mark).",
     "",
-    "HASHTAG RULES:",
-    "• 5–8 tags. Mix of niche + broad. Each starts with #. No spaces. Lowercase.",
+    "OUTPUT — STRICT JSON only, no prose, no markdown fences. Schema:",
+    '{"hook": string, "caption": string, "hashtags": string[], "script": [{ "layout": "single"|"stack", "lines": [{"text": string, "size": "small"|"hero"}], "hold": number }]}',
     "",
-    'OUTPUT: STRICT JSON only, no prose, no markdown fences. Schema: {"hook": string, "caption": string, "hashtags": string[]}',
+    "`hook` = the full sentence joined (for the reels table + social caption). `script` = the on-screen beats.",
+    "",
+    "EXAMPLE (for style only, do not copy):",
+    '{"hook":"the truth is the price of progress is pain, and most people quietly choose comfort over growth.","script":[{"layout":"stack","lines":[{"text":"the","size":"small"},{"text":"truth is","size":"hero"}],"hold":1},{"layout":"stack","lines":[{"text":"the price of","size":"small"},{"text":"progress","size":"hero"}],"hold":1.2},{"layout":"single","lines":[{"text":"is pain,","size":"hero"}],"hold":1.3},{"layout":"single","lines":[{"text":"and most people","size":"hero"}],"hold":0.9},{"layout":"stack","lines":[{"text":"quietly","size":"small"},{"text":"choose","size":"hero"}],"hold":1},{"layout":"stack","lines":[{"text":"comfort","size":"hero"},{"text":"over","size":"small"},{"text":"growth.","size":"hero"}],"hold":1.5}]}',
   ].join("\n");
 
   const user = [
     `Brand: ${input.brandName}`,
-    input.knowledgeBase
-      ? `Brand voice / positioning / audience:\n${input.knowledgeBase}`
-      : "",
+    input.knowledgeBase ? `Brand voice / positioning / audience:\n${input.knowledgeBase}` : "",
     input.product ? `Today's product / topic:\n${JSON.stringify(input.product)}` : "",
-    `Random creative seed (use this to pick a fresh angle, don't repeat past hooks): ${Math.floor(Math.random() * 1e9)}`,
-    "Write ONE reel now. Ship the JSON.",
+    `Creative seed (pick a fresh angle, don't repeat prior reels): ${Math.floor(Math.random() * 1e9)}`,
+    "Write one full-sentence reel now, as JSON, matching every rule above.",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -116,48 +144,73 @@ async function generateCopy(input: {
         response_format: { type: "json_object" },
       }),
     });
-    if (!res.ok) throw new Error(`AI gateway ${res.status}: ${await res.text()}`);
+    if (!res.ok) throw new Error(`AI gateway ${res.status}`);
     const j = await res.json();
-    const text = j?.choices?.[0]?.message?.content ?? "";
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(j?.choices?.[0]?.message?.content ?? "{}");
+    const beats = Array.isArray(parsed.script) ? parsed.script : [];
+    const cleanBeats: ScriptBeat[] = beats
+      .map((b: unknown) => {
+        const raw = b as { layout?: string; lines?: Array<{ text?: string; size?: string }>; hold?: number };
+        const layout = raw.layout === "stack" ? "stack" : "single";
+        const lines = Array.isArray(raw.lines)
+          ? raw.lines
+              .map((l) => ({
+                text: String(l?.text ?? "").trim(),
+                size: (l?.size === "small" ? "small" : "hero") as "small" | "hero",
+              }))
+              .filter((l) => l.text.length > 0)
+          : [];
+        return { layout, lines, hold: typeof raw.hold === "number" ? raw.hold : 1 } as ScriptBeat;
+      })
+      .filter((b: ScriptBeat) => b.lines.length > 0);
+    if (cleanBeats.length < 3) return fallback;
     return {
-      hook: String(parsed.hook ?? "").replace(/^["']|["']$/g, "").slice(0, 200) ||
-        `${input.brandName}: try it today.`,
+      hook: String(parsed.hook ?? "").slice(0, 500) || cleanBeats.map((b) => b.lines.map((l) => l.text).join(" ")).join(" "),
       caption: String(parsed.caption ?? "").slice(0, 1000),
-      hashtags: Array.isArray(parsed.hashtags)
-        ? parsed.hashtags.map((t: unknown) => String(t)).slice(0, 12)
-        : [],
+      hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags.map((t: unknown) => String(t)).slice(0, 12) : [],
+      script: cleanBeats,
     };
   } catch {
-    return {
-      hook: `${input.brandName}: small change, big result.`,
-      caption: `Discover what makes ${input.brandName} different.`,
-      hashtags: ["#reels", "#brand", "#daily"],
-    };
+    return fallback;
   }
+}
+
+/**
+ * Duration is derived from the beat count so every beat gets ~1s to breathe.
+ * Clamped 18–24s for the "sentence has room to breathe" feel.
+ */
+export function computeDurationSeconds(script: ScriptBeat[]): number {
+  const totalHold = script.reduce((sum, b) => sum + Math.max(0.6, b.hold ?? 1), 0);
+  const seconds = Math.round(totalHold * 1.05);
+  return Math.max(18, Math.min(24, seconds));
+}
+
+/** Heuristic fallback: break a plain hook into beats when copywriter didn't emit a script. */
+function deriveScriptFromHook(hook: string): ScriptBeat[] {
+  const parts = hook
+    .replace(/[""'']/g, "")
+    .split(/[,;:.!?—–]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const source = parts.length ? parts : [hook];
+  return source.slice(0, 11).map<ScriptBeat>((phrase) => {
+    const words = phrase.split(/\s+/).filter(Boolean);
+    if (words.length <= 2) return { layout: "single", lines: [{ text: phrase, size: "hero" }], hold: 1 };
+    const kicker = words.slice(0, Math.max(1, Math.floor(words.length / 3))).join(" ");
+    const hero = words.slice(Math.max(1, Math.floor(words.length / 3))).join(" ");
+    return {
+      layout: "stack",
+      lines: [
+        { text: kicker, size: "small" },
+        { text: hero, size: "hero" },
+      ],
+      hold: 1,
+    };
+  });
 }
 
 type ReferenceBrief = { label: string | null; notes: string | null; analysis?: Record<string, unknown> | null };
 
-/**
- * Compute reel duration from copy length. Never force a short cram — every
- * beat gets enough screen time to read comfortably.
- *  <8 words   -> 8s
- *  8-14       -> 11s
- *  15-22      -> 15s
- *  23-34      -> 20s
- *  35-50      -> 25s
- *  >50        -> 30s
- */
-export function computeDurationSeconds(hook: string): number {
-  const words = String(hook ?? "").trim().split(/\s+/).filter(Boolean).length;
-  if (words <= 7) return 8;
-  if (words <= 14) return 11;
-  if (words <= 22) return 15;
-  if (words <= 34) return 20;
-  if (words <= 50) return 25;
-  return 30;
-}
 
 function fallbackStylePlan(hook: string, seed: number): TypographyStylePlan {
   const phrases = hook
@@ -384,14 +437,30 @@ export const renderNow = createServerFn({ method: "POST" })
     if (brandErr) throw new Error(brandErr.message);
     if (!brand) throw new Error("Brand not found");
 
-    // Reference recreation lock: force the hardcoded motion-poster template
-    // until it hits ~95% visual similarity with the reference. See docs.
-    const templateId = "motion-poster";
+    // Template selection: honor brand.template_id, but if it's "alternate"
+    // (or missing) we alternate between motion-poster and bold-editorial per
+    // render so the feed stays visually varied — as requested.
+    const brandTemplate = (brand.template_id ?? "alternate") as string;
+    let templateId: "motion-poster" | "bold-editorial";
+    if (brandTemplate === "motion-poster" || brandTemplate === "bold-editorial") {
+      templateId = brandTemplate;
+    } else {
+      const { count } = await supabase
+        .from("reels")
+        .select("id", { count: "exact", head: true })
+        .eq("brand_id", brand.id);
+      templateId = (count ?? 0) % 2 === 0 ? "motion-poster" : "bold-editorial";
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // Auto-generate copy unless caller passed one in.
     const copy = data.hook
-      ? { hook: data.hook, caption: data.caption ?? "", hashtags: [] as string[] }
+      ? {
+          hook: data.hook,
+          caption: data.caption ?? "",
+          hashtags: [] as string[],
+          script: [] as ScriptBeat[],
+        }
       : await generateCopy({
           brandName: brand.name,
           knowledgeBase: brand.knowledge_base,
@@ -426,6 +495,7 @@ export const renderNow = createServerFn({ method: "POST" })
       ...(brand.reference_reel_url ? [{ label: "original reference reel", notes: "Primary visual direction reference", analysis: null }] : []),
       ...((refs ?? []) as unknown as ReferenceBrief[]),
     ];
+    // Keep stylePlan for backward-compat with the legacy kinetic-type template.
     const stylePlan = await generateStylePlan({
       hook: copy.hook,
       brandName: brand.name,
@@ -434,17 +504,15 @@ export const renderNow = createServerFn({ method: "POST" })
       seed,
     });
 
-    // Duration for motion-poster: ~0.75s per word, clamped 6-14s. Matches the
-    // reference reel's cut cadence (11 beats in 8.7s).
-    const wordCount = String(copy.hook).trim().split(/\s+/).filter(Boolean).length;
-    const durationSeconds =
-      templateId === "motion-poster"
-        ? Math.max(6, Math.min(14, Math.round(wordCount * 0.75)))
-        : computeDurationSeconds(copy.hook);
+    // Script drives on-screen beats. Fallback to a heuristic split if empty.
+    const script: ScriptBeat[] =
+      copy.script && copy.script.length ? copy.script : deriveScriptFromHook(copy.hook);
+    const durationSeconds = computeDurationSeconds(script);
     const durationInFrames = durationSeconds * 30;
 
     const props: RenderProps = {
       hook: copy.hook,
+      script,
       seed,
       variant,
       stylePlan,
@@ -461,6 +529,7 @@ export const renderNow = createServerFn({ method: "POST" })
     // Persist duration on props so dispatch (which reads from DB for retries)
     // knows how long to render. Worker reads job.durationInFrames from top of payload.
     const propsWithDuration = { ...props, durationInFrames };
+
 
     const { data: job, error: jobErr } = await supabaseAdmin
       .from("render_jobs")

@@ -42,8 +42,16 @@ export type TypographyStylePlan = {
   }>;
 };
 
+export type ScriptBeat = {
+  layout: "single" | "stack";
+  lines: Array<{ text: string; size: "small" | "hero" }>;
+  hold?: number;
+};
+
 export type RenderProps = {
   hook: string;
+  /** Structured, hierarchy-aware script — one entry per on-screen beat. */
+  script?: ScriptBeat[];
   caption?: string;
   brand: BrandTokens;
   handle?: string | null;
