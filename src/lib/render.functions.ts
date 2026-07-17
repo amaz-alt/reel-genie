@@ -202,20 +202,9 @@ function deriveScriptFromHook(hook: string): ScriptBeat[] {
     };
   });
 }
-}
 
 type ReferenceBrief = { label: string | null; notes: string | null; analysis?: Record<string, unknown> | null };
 
-/**
- * Duration is derived from the beat count so every beat gets ~1s to breathe.
- * Clamped 18–24s for the "sentence has room to breathe" feel the brand asked for.
- */
-export function computeDurationSeconds(script: ScriptBeat[]): number {
-  const totalHold = script.reduce((sum, b) => sum + Math.max(0.6, b.hold ?? 1), 0);
-  // roughly 1.05s per hold-unit
-  const seconds = Math.round(totalHold * 1.05);
-  return Math.max(18, Math.min(24, seconds));
-}
 
 function fallbackStylePlan(hook: string, seed: number): TypographyStylePlan {
   const phrases = hook
