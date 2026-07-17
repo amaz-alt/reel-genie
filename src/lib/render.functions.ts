@@ -413,14 +413,30 @@ export const renderNow = createServerFn({ method: "POST" })
     if (brandErr) throw new Error(brandErr.message);
     if (!brand) throw new Error("Brand not found");
 
-    // Reference recreation lock: force the hardcoded motion-poster template
-    // until it hits ~95% visual similarity with the reference. See docs.
-    const templateId = "motion-poster";
+    // Template selection: honor brand.template_id, but if it's "alternate"
+    // (or missing) we alternate between motion-poster and bold-editorial per
+    // render so the feed stays visually varied — as requested.
+    const brandTemplate = (brand.template_id ?? "alternate") as string;
+    let templateId: "motion-poster" | "bold-editorial";
+    if (brandTemplate === "motion-poster" || brandTemplate === "bold-editorial") {
+      templateId = brandTemplate;
+    } else {
+      const { count } = await supabase
+        .from("reels")
+        .select("id", { count: "exact", head: true })
+        .eq("brand_id", brand.id);
+      templateId = (count ?? 0) % 2 === 0 ? "motion-poster" : "bold-editorial";
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // Auto-generate copy unless caller passed one in.
     const copy = data.hook
-      ? { hook: data.hook, caption: data.caption ?? "", hashtags: [] as string[] }
+      ? {
+          hook: data.hook,
+          caption: data.caption ?? "",
+          hashtags: [] as string[],
+          script: [] as ScriptBeat[],
+        }
       : await generateCopy({
           brandName: brand.name,
           knowledgeBase: brand.knowledge_base,
@@ -455,6 +471,7 @@ export const renderNow = createServerFn({ method: "POST" })
       ...(brand.reference_reel_url ? [{ label: "original reference reel", notes: "Primary visual direction reference", analysis: null }] : []),
       ...((refs ?? []) as unknown as ReferenceBrief[]),
     ];
+    // Keep stylePlan for backward-compat with the legacy kinetic-type template.
     const stylePlan = await generateStylePlan({
       hook: copy.hook,
       brandName: brand.name,
@@ -463,17 +480,15 @@ export const renderNow = createServerFn({ method: "POST" })
       seed,
     });
 
-    // Duration for motion-poster: ~0.75s per word, clamped 6-14s. Matches the
-    // reference reel's cut cadence (11 beats in 8.7s).
-    const wordCount = String(copy.hook).trim().split(/\s+/).filter(Boolean).length;
-    const durationSeconds =
-      templateId === "motion-poster"
-        ? Math.max(6, Math.min(14, Math.round(wordCount * 0.75)))
-        : computeDurationSeconds(copy.hook);
+    // Script drives on-screen beats. Fallback to a heuristic split if empty.
+    const script: ScriptBeat[] =
+      copy.script && copy.script.length ? copy.script : deriveScriptFromHook(copy.hook);
+    const durationSeconds = computeDurationSeconds(script);
     const durationInFrames = durationSeconds * 30;
 
     const props: RenderProps = {
       hook: copy.hook,
+      script,
       seed,
       variant,
       stylePlan,
@@ -490,6 +505,7 @@ export const renderNow = createServerFn({ method: "POST" })
     // Persist duration on props so dispatch (which reads from DB for retries)
     // knows how long to render. Worker reads job.durationInFrames from top of payload.
     const propsWithDuration = { ...props, durationInFrames };
+
 
     const { data: job, error: jobErr } = await supabaseAdmin
       .from("render_jobs")
