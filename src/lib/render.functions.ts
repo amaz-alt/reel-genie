@@ -172,7 +172,36 @@ async function generateCopy(input: {
     };
   } catch {
     return fallback;
-  }
+export function computeDurationSeconds(script: ScriptBeat[]): number {
+  const totalHold = script.reduce((sum, b) => sum + Math.max(0.6, b.hold ?? 1), 0);
+  // roughly 1.05s per hold-unit
+  const seconds = Math.round(totalHold * 1.05);
+  return Math.max(18, Math.min(24, seconds));
+}
+
+/** Heuristic fallback: break a plain hook into beats when copywriter didn't emit a script. */
+function deriveScriptFromHook(hook: string): ScriptBeat[] {
+  const parts = hook
+    .replace(/[""'']/g, "")
+    .split(/[,;:.!?—–]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const source = parts.length ? parts : [hook];
+  return source.slice(0, 11).map<ScriptBeat>((phrase) => {
+    const words = phrase.split(/\s+/).filter(Boolean);
+    if (words.length <= 2) return { layout: "single", lines: [{ text: phrase, size: "hero" }], hold: 1 };
+    const kicker = words.slice(0, Math.max(1, Math.floor(words.length / 3))).join(" ");
+    const hero = words.slice(Math.max(1, Math.floor(words.length / 3))).join(" ");
+    return {
+      layout: "stack",
+      lines: [
+        { text: kicker, size: "small" },
+        { text: hero, size: "hero" },
+      ],
+      hold: 1,
+    };
+  });
+}
 }
 
 type ReferenceBrief = { label: string | null; notes: string | null; analysis?: Record<string, unknown> | null };
