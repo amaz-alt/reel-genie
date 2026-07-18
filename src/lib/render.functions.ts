@@ -237,7 +237,7 @@ function buildReferenceQualityPlan(input: {
   ].filter(Boolean) as string[];
 
   return {
-    version: "reference-quality-v1",
+    version: "reference-quality-v1" as const,
     referenceName,
     selectedTemplate: input.templateId,
     analyzedReferenceCount: input.analyzedReferenceCount,

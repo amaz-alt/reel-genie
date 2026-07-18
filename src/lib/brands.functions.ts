@@ -35,7 +35,7 @@ export const getBrand = createServerFn({ method: "GET" })
 
     const { data: reels } = await context.supabase
       .from("reels")
-      .select("id, hook, caption, status, video_url, scheduled_for, published_at, created_at, error")
+      .select("id, hook, caption, status, template_id, video_url, scheduled_for, published_at, created_at, error")
       .eq("brand_id", data.id)
       .order("created_at", { ascending: false })
       .limit(50);
