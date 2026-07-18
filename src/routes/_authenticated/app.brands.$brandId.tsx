@@ -91,7 +91,7 @@ function BrandDetail() {
     setSheetUrl(data.brand.google_sheet_url ?? "");
     setSheetTab(data.brand.sheet_tab ?? "Sheet1");
     setKb(data.brand.knowledge_base ?? "");
-    setTemplateId(data.brand.template_id ?? "");
+    setTemplateId(data.brand.template_id ?? "alternate");
     if (data.brand.brand_colors) {
       setColors({ ...colors, ...(data.brand.brand_colors as typeof colors) });
     }
@@ -151,9 +151,18 @@ function BrandDetail() {
   });
 
   const render = useMutation({
-    mutationFn: () => renderNow({ data: { brand_id: brandId } }),
+    mutationFn: () =>
+      renderNow({
+        data: {
+          brand_id: brandId,
+          template_id:
+            templateId === "motion-poster" || templateId === "bold-editorial" || templateId === "alternate"
+              ? templateId
+              : "alternate",
+        },
+      }),
     onSuccess: (r) => {
-      toast.success(`Rendering: "${r.hook}"`);
+      toast.success(`Rendering ${r.template_id}: "${r.hook}"`);
       qc.invalidateQueries({ queryKey: ["brand", brandId] });
       qc.invalidateQueries({ queryKey: ["render_jobs", brandId] });
     },
@@ -488,6 +497,11 @@ function BrandDetail() {
                           <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                             {r.caption ?? ""}
                           </div>
+                          {r.template_id ? (
+                            <div className="mt-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                              Template: {r.template_id}
+                            </div>
+                          ) : null}
                         </div>
                         <div className="text-right">
                           <Badge

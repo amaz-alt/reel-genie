@@ -59,6 +59,20 @@ export type RenderProps = {
   seed?: number;
   variant?: "stagger" | "cascade" | "bounce" | "mask" | "shuffle" | "swing";
   stylePlan?: TypographyStylePlan;
+  qualityPlan?: {
+    version: "reference-quality-v1";
+    referenceName: string;
+    selectedTemplate: string;
+    analyzedReferenceCount: number;
+    durationSeconds: number;
+    wordCount: number;
+    beatCount: number;
+    stackRatio: number;
+    displayFont: string;
+    recentTemplates: string[];
+    checklist: string[];
+    warnings: string[];
+  };
 };
 
 export type RenderJobPayload = {

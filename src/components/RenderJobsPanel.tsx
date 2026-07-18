@@ -87,7 +87,7 @@ export function RenderJobsPanel({ brandId }: { brandId: string }) {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <StatusBadge status={j.status} />
-                        <span className="truncate text-xs text-muted-foreground">
+                        <span className="truncate text-xs font-medium text-muted-foreground">
                           {j.template_id}
                         </span>
                       </div>
