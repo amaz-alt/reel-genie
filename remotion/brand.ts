@@ -35,6 +35,7 @@ export type ReelProps = {
   /** Legacy fields — kept so older jobs still render. */
   variant?: string;
   stylePlan?: unknown;
+  qualityPlan?: unknown;
 };
 
 export const DEFAULT_BRAND: BrandTokens = {

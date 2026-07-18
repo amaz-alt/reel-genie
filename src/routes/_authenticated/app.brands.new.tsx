@@ -29,7 +29,7 @@ function NewBrand() {
   const [sheetUrl, setSheetUrl] = useState("");
   const [sheetTab, setSheetTab] = useState("Sheet1");
   const [knowledgeBase, setKnowledgeBase] = useState("");
-  const [templateId, setTemplateId] = useState<string>("kinetic-type");
+  const [templateId, setTemplateId] = useState<string>("alternate");
   const [colors, setColors] = useState<Colors>({
     primary: "#111111",
     accent: "#ff3b30",
