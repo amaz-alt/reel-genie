@@ -497,6 +497,11 @@ function BrandDetail() {
                           <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                             {r.caption ?? ""}
                           </div>
+                          {r.template_id ? (
+                            <div className="mt-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                              Template: {r.template_id}
+                            </div>
+                          ) : null}
                         </div>
                         <div className="text-right">
                           <Badge
