@@ -62,6 +62,18 @@ type CopyResult = {
   script: ScriptBeat[];
 };
 
+type LockedTemplateId = "motion-poster" | "bold-editorial";
+
+const LOCKED_TEMPLATE_IDS = ["motion-poster", "bold-editorial"] as const;
+
+function isLockedTemplateId(value: unknown): value is LockedTemplateId {
+  return value === "motion-poster" || value === "bold-editorial";
+}
+
+function oppositeTemplate(templateId: LockedTemplateId): LockedTemplateId {
+  return templateId === "motion-poster" ? "bold-editorial" : "motion-poster";
+}
+
 /**
  * Structured copywriter — Alex Cattoni / Copy Posse pain-point storytelling.
  * Emits a full on-screen SCRIPT broken into hierarchy-aware beats (kicker +
@@ -92,7 +104,7 @@ async function generateCopy(input: {
 
   const sys = [
     "You are a senior direct-response copywriter trained in the Alex Cattoni / Copy Posse school and in short-form kinetic typography reels.",
-    "You are writing one 18–22 second reel. The output is not a slogan or a hook — it is a COMPLETE STORYTELLING SENTENCE broken into on-screen beats.",
+    "You are writing one 20–25 second reel. The output is not a slogan or a hook — it is a COMPLETE STORYTELLING SENTENCE broken into on-screen beats.",
     "",
     "COPY RULES (Copy Posse):",
     "• Speak like a real person mid-thought, not a marketer. No slogans, no rhyme, no cliches ('game-changer', 'level up', 'unlock', 'elevate', 'unleash').",
@@ -100,10 +112,10 @@ async function generateCopy(input: {
     "• Use specific concrete details: numbers, timeframes, a mistake, a small realisation. Concrete beats abstract.",
     "• One second-person voice ('you', 'your') OR one first-person confession ('I', 'we'). Pick one and stay consistent.",
     "• The complete sentence should read out loud like something said to a friend after a hard week — not a caption.",
-    "• Length: total sentence 22–34 words across 7–11 beats. Never a single word per beat unless it lands like a hammer.",
+    "• Length: total sentence 30–44 words across 9–14 beats. Never a single word per beat unless it lands like a hammer.",
     "",
     "BEAT / SCRIPT RULES (this is how the reel renders):",
-    "• Split the sentence into 7–11 beats that read together as one continuous thought when watched in sequence.",
+    "• Split the sentence into 9–14 beats that read together as one continuous thought when watched in sequence.",
     "• Each beat has a `layout`:",
     "    - \"single\": one line, centered, hero-sized. Use for a punchy word or short phrase.",
     "    - \"stack\": 2–3 lines with SIZE CONTRAST. Small connective words (\"the\", \"of\", \"but if\", \"over\", \"is\") get size:\"small\"; the meaty noun/verb gets size:\"hero\".",
@@ -176,13 +188,68 @@ async function generateCopy(input: {
 }
 
 /**
- * Duration is derived from the beat count so every beat gets ~1s to breathe.
- * Clamped 18–24s for the "sentence has room to breathe" feel.
+ * Duration is derived from the beat weights so every beat gets room to breathe.
+ * Clamped 20–25s for complete story-style hooks.
  */
 export function computeDurationSeconds(script: ScriptBeat[]): number {
   const totalHold = script.reduce((sum, b) => sum + Math.max(0.6, b.hold ?? 1), 0);
-  const seconds = Math.round(totalHold * 1.05);
-  return Math.max(18, Math.min(24, seconds));
+  const seconds = Math.round(totalHold * 1.55);
+  return Math.max(20, Math.min(25, seconds));
+}
+
+function buildReferenceQualityPlan(input: {
+  templateId: LockedTemplateId;
+  script: ScriptBeat[];
+  brandFonts: { display: string; body: string };
+  durationSeconds: number;
+  analyzedReferenceCount: number;
+  recentTemplates: string[];
+}) {
+  const wordCount = input.script.reduce(
+    (sum, beat) => sum + beat.lines.reduce((lineSum, line) => lineSum + line.text.split(/\s+/).filter(Boolean).length, 0),
+    0,
+  );
+  const stackRatio = input.script.length
+    ? input.script.filter((beat) => beat.layout === "stack").length / input.script.length
+    : 0;
+  const referenceName = input.templateId === "motion-poster" ? "yp.motionstudio" : "rendyr.video";
+  const checklist =
+    input.templateId === "motion-poster"
+      ? [
+          "hard-cut full-screen primary/accent poster fields",
+          "top-center Instagram handle watermark",
+          "single hero phrases mixed with small/HUGE/small stacks",
+          "no caption text inside the video",
+          "brand display font is the only typography source",
+        ]
+      : [
+          "hard-cut accent/background editorial fields",
+          "top-center text watermark",
+          "kicker plus hero hierarchy with generous centered empty space",
+          "no caption text inside the video",
+          "brand display font is the only typography source",
+        ];
+  const warnings = [
+    wordCount < 28 ? `script may be too short for a 20–25s story (${wordCount} words)` : null,
+    input.script.length < 8 ? `too few on-screen beats (${input.script.length})` : null,
+    stackRatio < 0.25 ? "not enough hierarchy stacks; output can feel like plain text on background" : null,
+    !input.brandFonts.display ? "missing display font; renderer will fall back" : null,
+  ].filter(Boolean) as string[];
+
+  return {
+    version: "reference-quality-v1",
+    referenceName,
+    selectedTemplate: input.templateId,
+    analyzedReferenceCount: input.analyzedReferenceCount,
+    durationSeconds: input.durationSeconds,
+    wordCount,
+    beatCount: input.script.length,
+    stackRatio: Number(stackRatio.toFixed(2)),
+    displayFont: input.brandFonts.display,
+    recentTemplates: input.recentTemplates,
+    checklist,
+    warnings,
+  };
 }
 
 /** Heuristic fallback: break a plain hook into beats when copywriter didn't emit a script. */
@@ -423,6 +490,7 @@ export const renderNow = createServerFn({ method: "POST" })
         brand_id: z.string().uuid(),
         hook: z.string().min(1).max(200).optional(),
         caption: z.string().max(1000).optional(),
+        template_id: z.enum(["motion-poster", "bold-editorial", "alternate"]).optional(),
       })
       .parse(data),
   )
@@ -437,19 +505,22 @@ export const renderNow = createServerFn({ method: "POST" })
     if (brandErr) throw new Error(brandErr.message);
     if (!brand) throw new Error("Brand not found");
 
-    // Template selection: honor brand.template_id, but if it's "alternate"
-    // (or missing) we alternate between motion-poster and bold-editorial per
-    // render so the feed stays visually varied — as requested.
-    const brandTemplate = (brand.template_id ?? "alternate") as string;
-    let templateId: "motion-poster" | "bold-editorial";
-    if (brandTemplate === "motion-poster" || brandTemplate === "bold-editorial") {
-      templateId = brandTemplate;
+    // Template selection: the button can pass the currently selected card, so
+    // users do not have to remember to hit Save before rendering a test reel.
+    const requestedTemplate = data.template_id ?? brand.template_id ?? "alternate";
+    const { data: recentTemplateRows } = await supabase
+      .from("render_jobs")
+      .select("template_id")
+      .eq("brand_id", brand.id)
+      .order("created_at", { ascending: false })
+      .limit(6);
+    const recentTemplates = (recentTemplateRows ?? []).map((row) => String(row.template_id));
+    let templateId: LockedTemplateId;
+    if (isLockedTemplateId(requestedTemplate)) {
+      templateId = requestedTemplate;
     } else {
-      const { count } = await supabase
-        .from("reels")
-        .select("id", { count: "exact", head: true })
-        .eq("brand_id", brand.id);
-      templateId = (count ?? 0) % 2 === 0 ? "motion-poster" : "bold-editorial";
+      const lastLocked = recentTemplates.find(isLockedTemplateId) as LockedTemplateId | undefined;
+      templateId = lastLocked ? oppositeTemplate(lastLocked) : LOCKED_TEMPLATE_IDS[0];
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -474,6 +545,7 @@ export const renderNow = createServerFn({ method: "POST" })
         hook: copy.hook,
         caption: copy.caption || null,
         hashtags: copy.hashtags,
+        template_id: templateId,
         status: "queued",
       })
       .select("id")
@@ -509,6 +581,16 @@ export const renderNow = createServerFn({ method: "POST" })
       copy.script && copy.script.length ? copy.script : deriveScriptFromHook(copy.hook);
     const durationSeconds = computeDurationSeconds(script);
     const durationInFrames = durationSeconds * 30;
+    const brandFonts = { ...DEFAULT_FONTS, ...((brand.brand_fonts as { display?: string; body?: string } | null) ?? {}) };
+    const analyzedReferenceCount = referenceBriefs.filter((r) => r.analysis).length;
+    const qualityPlan = buildReferenceQualityPlan({
+      templateId,
+      script,
+      brandFonts,
+      durationSeconds,
+      analyzedReferenceCount,
+      recentTemplates,
+    });
 
     const props: RenderProps = {
       hook: copy.hook,
@@ -516,12 +598,12 @@ export const renderNow = createServerFn({ method: "POST" })
       seed,
       variant,
       stylePlan,
+      qualityPlan,
       handle: brand.name ? `@${brand.name}` : null,
       brand: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         colors: { ...DEFAULT_COLORS, ...((brand.brand_colors as any) ?? {}) },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fonts: { ...DEFAULT_FONTS, ...((brand.brand_fonts as any) ?? {}) },
+        fonts: brandFonts,
         logoUrl: brand.logo_url,
       },
     };
@@ -551,7 +633,12 @@ export const renderNow = createServerFn({ method: "POST" })
     await appendLog(supabaseAdmin, job.id, {
       level: "info",
       stage: "enqueue",
-      message: `job created: "${copy.hook}" — ${durationSeconds}s (${referenceBriefs.filter(r=>r.analysis).length} analyzed refs)`,
+      message: `job created: "${copy.hook}" — ${durationSeconds}s — template=${templateId} (${analyzedReferenceCount} analyzed refs)`,
+    });
+    await appendLog(supabaseAdmin, job.id, {
+      level: qualityPlan.warnings.length ? "warn" : "info",
+      stage: "quality_audit",
+      message: `${qualityPlan.referenceName} lock: ${qualityPlan.beatCount} beats, ${qualityPlan.wordCount} words, stackRatio=${qualityPlan.stackRatio}, font=${qualityPlan.displayFont}${qualityPlan.warnings.length ? ` — warnings: ${qualityPlan.warnings.join("; ")}` : ""}`,
     });
 
     await dispatchJob(supabaseAdmin, {
@@ -563,7 +650,7 @@ export const renderNow = createServerFn({ method: "POST" })
       attempts: 0,
     });
 
-    return { reel_id: reel.id, job_id: job.id, hook: copy.hook, duration_seconds: durationSeconds };
+    return { reel_id: reel.id, job_id: job.id, hook: copy.hook, duration_seconds: durationSeconds, template_id: templateId };
   });
 
 /**
