@@ -32,9 +32,11 @@ function normalizeHandle(name?: string | null) {
 }
 
 // Simple 3-frame fade + 12px settle, matching the "just appears" feel of the ref.
-function useBeatEntrance(startFrame: number) {
-  const frame = useCurrentFrame();
-  const local = frame - startFrame;
+// Sequence-local frame — inside a <Sequence>, useCurrentFrame() already
+// returns frames relative to the sequence start, so we do NOT subtract
+// startFrame (that made every beat after the first render as blank).
+function useBeatEntrance() {
+  const local = useCurrentFrame();
   const opacity = interpolate(local, [0, 3], [0, 1], { extrapolateRight: "clamp" });
   const y = interpolate(local, [0, 6], [12, 0], { extrapolateRight: "clamp" });
   return { opacity, transform: `translateY(${y}px)` };
