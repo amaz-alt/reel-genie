@@ -95,7 +95,7 @@ const SingleBeat: React.FC<{
   fontFamily: string;
   handle: string;
 }> = ({ beat, bg, fg, startFrame, fontFamily, handle }) => {
-  const entrance = useBeatEntrance(startFrame);
+  const entrance = useBeatEntrance();
   const line = beat.lines[0];
   const size = fitHeroSize(line.text);
   return (
