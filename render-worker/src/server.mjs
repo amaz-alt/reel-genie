@@ -19,7 +19,7 @@ app.addHook("onRequest", async (req, reply) => {
   }
 });
 
-app.get("/health", async () => ({ ok: true, version: "0.5.0" }));
+app.get("/health", async () => ({ ok: true, version: "0.5.1" }));
 
 app.post("/render", async (req, reply) => {
   const job = req.body;
