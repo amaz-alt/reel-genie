@@ -71,10 +71,9 @@ const Watermark: React.FC<{ handle: string; color: string }> = ({ handle, color 
 const BeatBody: React.FC<{
   beat: Beat;
   fg: string;
-  startFrame: number;
   fontFamily: string;
-}> = ({ beat, fg, startFrame, fontFamily }) => {
-  const entrance = useBeatEntrance(startFrame);
+}> = ({ beat, fg, fontFamily }) => {
+  const entrance = useBeatEntrance();
   const heroLineText = beat.lines.find((l) => l.size === "hero")?.text ?? beat.lines[0].text;
   const heroSz = heroSize(heroLineText);
   const smallSz = Math.max(44, Math.round(heroSz * 0.2));
