@@ -212,9 +212,9 @@ export const MotionPoster: React.FC<ReelProps> = ({ hook, script, brand, handle:
         return (
           <Sequence key={i} from={from} durationInFrames={frames} layout="none">
             {beat.layout === "stack" ? (
-              <StackBeat beat={beat} bg={bg} fg={fg} startFrame={from} fontFamily={fontFamily} handle={handle} />
+              <StackBeat beat={beat} bg={bg} fg={fg} fontFamily={fontFamily} handle={handle} />
             ) : (
-              <SingleBeat beat={beat} bg={bg} fg={fg} startFrame={from} fontFamily={fontFamily} handle={handle} />
+              <SingleBeat beat={beat} bg={bg} fg={fg} fontFamily={fontFamily} handle={handle} />
             )}
           </Sequence>
         );
