@@ -125,10 +125,9 @@ const StackBeat: React.FC<{
   beat: Beat;
   bg: string;
   fg: string;
-  startFrame: number;
   fontFamily: string;
   handle: string;
-}> = ({ beat, bg, fg, startFrame, fontFamily, handle }) => {
+}> = ({ beat, bg, fg, fontFamily, handle }) => {
   const entrance = useBeatEntrance();
   // Compute hero size against the longest hero line only.
   const heroLine = beat.lines.find((l) => l.size === "hero")?.text ?? beat.lines[0].text;
