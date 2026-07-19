@@ -32,9 +32,11 @@ function normalizeHandle(name?: string | null) {
 }
 
 // Simple 3-frame fade + 12px settle, matching the "just appears" feel of the ref.
-function useBeatEntrance(startFrame: number) {
-  const frame = useCurrentFrame();
-  const local = frame - startFrame;
+// Sequence-local frame — inside a <Sequence>, useCurrentFrame() already
+// returns frames relative to the sequence start, so we do NOT subtract
+// startFrame (that made every beat after the first render as blank).
+function useBeatEntrance() {
+  const local = useCurrentFrame();
   const opacity = interpolate(local, [0, 3], [0, 1], { extrapolateRight: "clamp" });
   const y = interpolate(local, [0, 6], [12, 0], { extrapolateRight: "clamp" });
   return { opacity, transform: `translateY(${y}px)` };
@@ -89,11 +91,10 @@ const SingleBeat: React.FC<{
   beat: Beat;
   bg: string;
   fg: string;
-  startFrame: number;
   fontFamily: string;
   handle: string;
-}> = ({ beat, bg, fg, startFrame, fontFamily, handle }) => {
-  const entrance = useBeatEntrance(startFrame);
+}> = ({ beat, bg, fg, fontFamily, handle }) => {
+  const entrance = useBeatEntrance();
   const line = beat.lines[0];
   const size = fitHeroSize(line.text);
   return (
@@ -124,11 +125,10 @@ const StackBeat: React.FC<{
   beat: Beat;
   bg: string;
   fg: string;
-  startFrame: number;
   fontFamily: string;
   handle: string;
-}> = ({ beat, bg, fg, startFrame, fontFamily, handle }) => {
-  const entrance = useBeatEntrance(startFrame);
+}> = ({ beat, bg, fg, fontFamily, handle }) => {
+  const entrance = useBeatEntrance();
   // Compute hero size against the longest hero line only.
   const heroLine = beat.lines.find((l) => l.size === "hero")?.text ?? beat.lines[0].text;
   const heroSize = fitHeroSize(heroLine);
@@ -212,9 +212,9 @@ export const MotionPoster: React.FC<ReelProps> = ({ hook, script, brand, handle:
         return (
           <Sequence key={i} from={from} durationInFrames={frames} layout="none">
             {beat.layout === "stack" ? (
-              <StackBeat beat={beat} bg={bg} fg={fg} startFrame={from} fontFamily={fontFamily} handle={handle} />
+              <StackBeat beat={beat} bg={bg} fg={fg} fontFamily={fontFamily} handle={handle} />
             ) : (
-              <SingleBeat beat={beat} bg={bg} fg={fg} startFrame={from} fontFamily={fontFamily} handle={handle} />
+              <SingleBeat beat={beat} bg={bg} fg={fg} fontFamily={fontFamily} handle={handle} />
             )}
           </Sequence>
         );

@@ -31,9 +31,10 @@ function normalizeHandle(name?: string | null) {
   return `@${cleaned.toLowerCase().replace(/[^a-z0-9._]+/g, "")}`.slice(0, 28);
 }
 
-function useBeatEntrance(startFrame: number) {
-  const frame = useCurrentFrame();
-  const local = frame - startFrame;
+// Sequence-local frame — useCurrentFrame() inside a <Sequence> already
+// returns the local frame, so we don't subtract a startFrame here.
+function useBeatEntrance() {
+  const local = useCurrentFrame();
   const opacity = interpolate(local, [0, 4], [0, 1], { extrapolateRight: "clamp" });
   const blur = interpolate(local, [0, 5], [2.2, 0], { extrapolateRight: "clamp" });
   const y = interpolate(local, [0, 6], [8, 0], { extrapolateRight: "clamp" });
@@ -70,10 +71,9 @@ const Watermark: React.FC<{ handle: string; color: string }> = ({ handle, color 
 const BeatBody: React.FC<{
   beat: Beat;
   fg: string;
-  startFrame: number;
   fontFamily: string;
-}> = ({ beat, fg, startFrame, fontFamily }) => {
-  const entrance = useBeatEntrance(startFrame);
+}> = ({ beat, fg, fontFamily }) => {
+  const entrance = useBeatEntrance();
   const heroLineText = beat.lines.find((l) => l.size === "hero")?.text ?? beat.lines[0].text;
   const heroSz = heroSize(heroLineText);
   const smallSz = Math.max(44, Math.round(heroSz * 0.2));
@@ -172,7 +172,7 @@ export const BoldEditorial: React.FC<ReelProps> = ({ hook, script, brand, handle
             <AbsoluteFill style={{ backgroundColor: bg }}>
               <Watermark handle={handle} color={fg} />
               <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
-                <BeatBody beat={beat} fg={fg} startFrame={from} fontFamily={fontFamily} />
+                <BeatBody beat={beat} fg={fg} fontFamily={fontFamily} />
               </AbsoluteFill>
             </AbsoluteFill>
           </Sequence>
