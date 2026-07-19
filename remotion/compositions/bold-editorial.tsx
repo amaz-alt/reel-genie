@@ -31,9 +31,10 @@ function normalizeHandle(name?: string | null) {
   return `@${cleaned.toLowerCase().replace(/[^a-z0-9._]+/g, "")}`.slice(0, 28);
 }
 
-function useBeatEntrance(startFrame: number) {
-  const frame = useCurrentFrame();
-  const local = frame - startFrame;
+// Sequence-local frame — useCurrentFrame() inside a <Sequence> already
+// returns the local frame, so we don't subtract a startFrame here.
+function useBeatEntrance() {
+  const local = useCurrentFrame();
   const opacity = interpolate(local, [0, 4], [0, 1], { extrapolateRight: "clamp" });
   const blur = interpolate(local, [0, 5], [2.2, 0], { extrapolateRight: "clamp" });
   const y = interpolate(local, [0, 6], [8, 0], { extrapolateRight: "clamp" });
