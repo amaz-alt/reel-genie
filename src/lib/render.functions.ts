@@ -74,8 +74,124 @@ function oppositeTemplate(templateId: LockedTemplateId): LockedTemplateId {
   return templateId === "motion-poster" ? "bold-editorial" : "motion-poster";
 }
 
+/* -------------------- product rotation from Google Sheet -------------------- */
+
+type PickedProduct = { rowKey: string; row: Record<string, string> };
+
+function extractSheetId(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  return m ? m[1] : null;
+}
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let cur = "";
+  let row: string[] = [];
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"' && text[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else if (c === '"') {
+        inQuotes = false;
+      } else {
+        cur += c;
+      }
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ",") {
+        row.push(cur);
+        cur = "";
+      } else if (c === "\n") {
+        row.push(cur);
+        rows.push(row);
+        row = [];
+        cur = "";
+      } else if (c === "\r") {
+        // skip
+      } else {
+        cur += c;
+      }
+    }
+  }
+  if (cur.length || row.length) {
+    row.push(cur);
+    rows.push(row);
+  }
+  return rows.filter((r) => r.some((cell) => cell.trim().length > 0));
+}
+
+async function fetchSheetRows(sheetId: string, tab: string | null): Promise<Record<string, string>[]> {
+  const sheetName = tab && tab.trim() ? encodeURIComponent(tab.trim()) : "Sheet1";
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${sheetName}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`sheet fetch failed: ${res.status}`);
+  const text = await res.text();
+  const rows = parseCsv(text);
+  if (rows.length < 2) return [];
+  const headers = rows[0].map((h) => h.trim().toLowerCase() || `col_${Math.random().toString(36).slice(2, 6)}`);
+  return rows.slice(1).map((r) => {
+    const obj: Record<string, string> = {};
+    headers.forEach((h, i) => {
+      obj[h] = (r[i] ?? "").trim();
+    });
+    return obj;
+  });
+}
+
+async function pickNextProduct(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  input: { brandId: string; sheetUrl: string | null; sheetId: string | null; sheetTab: string | null },
+): Promise<PickedProduct | null> {
+  const sheetId = input.sheetId || extractSheetId(input.sheetUrl);
+  if (!sheetId) return null;
+  let rows: Record<string, string>[];
+  try {
+    rows = await fetchSheetRows(sheetId, input.sheetTab);
+  } catch {
+    return null;
+  }
+  if (!rows.length) return null;
+
+  const { data: consumedRows } = await admin
+    .from("products_consumed")
+    .select("product_row_key")
+    .eq("brand_id", input.brandId);
+  const consumed = new Set<string>((consumedRows ?? []).map((r: { product_row_key: string }) => r.product_row_key));
+
+  const withKey = rows.map((row, idx) => {
+    const identity =
+      row.id || row.sku || row.title || row.product || row.name || row.topic || Object.values(row).slice(0, 3).join("|");
+    const rowKey = `${idx}:${identity}`.slice(0, 240);
+    return { rowKey, row };
+  });
+
+  const unused = withKey.filter((r) => !consumed.has(r.rowKey));
+  const pool = unused.length ? unused : withKey; // full rotation: recycle when exhausted
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+
+  if (!unused.length) {
+    // Rotation completed — reset the ledger so the next run starts fresh.
+    await admin.from("products_consumed").delete().eq("brand_id", input.brandId);
+  }
+  await admin
+    .from("products_consumed")
+    .insert({ brand_id: input.brandId, product_row_key: pick.rowKey })
+    .then(() => undefined, () => undefined);
+
+  return pick;
+}
+
 /**
  * Structured copywriter — Alex Cattoni / Copy Posse pain-point storytelling.
+ * Emits a full on-screen SCRIPT broken into hierarchy-aware beats (kicker +
+ * hero + coda), not just a single hook. The composition renders one beat at
+ * a time with size contrast to match the reference reels.
+ */
  * Emits a full on-screen SCRIPT broken into hierarchy-aware beats (kicker +
  * hero + coda), not just a single hook. The composition renders one beat at
  * a time with size contrast to match the reference reels.
