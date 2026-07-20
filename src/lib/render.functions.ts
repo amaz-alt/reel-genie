@@ -74,6 +74,118 @@ function oppositeTemplate(templateId: LockedTemplateId): LockedTemplateId {
   return templateId === "motion-poster" ? "bold-editorial" : "motion-poster";
 }
 
+/* -------------------- product rotation from Google Sheet -------------------- */
+
+type PickedProduct = { rowKey: string; row: Record<string, string> };
+
+function extractSheetId(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  return m ? m[1] : null;
+}
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let cur = "";
+  let row: string[] = [];
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"' && text[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else if (c === '"') {
+        inQuotes = false;
+      } else {
+        cur += c;
+      }
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ",") {
+        row.push(cur);
+        cur = "";
+      } else if (c === "\n") {
+        row.push(cur);
+        rows.push(row);
+        row = [];
+        cur = "";
+      } else if (c === "\r") {
+        // skip
+      } else {
+        cur += c;
+      }
+    }
+  }
+  if (cur.length || row.length) {
+    row.push(cur);
+    rows.push(row);
+  }
+  return rows.filter((r) => r.some((cell) => cell.trim().length > 0));
+}
+
+async function fetchSheetRows(sheetId: string, tab: string | null): Promise<Record<string, string>[]> {
+  const sheetName = tab && tab.trim() ? encodeURIComponent(tab.trim()) : "Sheet1";
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${sheetName}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`sheet fetch failed: ${res.status}`);
+  const text = await res.text();
+  const rows = parseCsv(text);
+  if (rows.length < 2) return [];
+  const headers = rows[0].map((h) => h.trim().toLowerCase() || `col_${Math.random().toString(36).slice(2, 6)}`);
+  return rows.slice(1).map((r) => {
+    const obj: Record<string, string> = {};
+    headers.forEach((h, i) => {
+      obj[h] = (r[i] ?? "").trim();
+    });
+    return obj;
+  });
+}
+
+async function pickNextProduct(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  input: { brandId: string; sheetUrl: string | null; sheetId: string | null; sheetTab: string | null },
+): Promise<PickedProduct | null> {
+  const sheetId = input.sheetId || extractSheetId(input.sheetUrl);
+  if (!sheetId) return null;
+  let rows: Record<string, string>[];
+  try {
+    rows = await fetchSheetRows(sheetId, input.sheetTab);
+  } catch {
+    return null;
+  }
+  if (!rows.length) return null;
+
+  const { data: consumedRows } = await admin
+    .from("products_consumed")
+    .select("product_row_key")
+    .eq("brand_id", input.brandId);
+  const consumed = new Set<string>((consumedRows ?? []).map((r: { product_row_key: string }) => r.product_row_key));
+
+  const withKey = rows.map((row, idx) => {
+    const identity =
+      row.id || row.sku || row.title || row.product || row.name || row.topic || Object.values(row).slice(0, 3).join("|");
+    const rowKey = `${idx}:${identity}`.slice(0, 240);
+    return { rowKey, row };
+  });
+
+  const unused = withKey.filter((r) => !consumed.has(r.rowKey));
+  const pool = unused.length ? unused : withKey; // full rotation: recycle when exhausted
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+
+  if (!unused.length) {
+    // Rotation completed — reset the ledger so the next run starts fresh.
+    await admin.from("products_consumed").delete().eq("brand_id", input.brandId);
+  }
+  await admin
+    .from("products_consumed")
+    .insert({ brand_id: input.brandId, product_row_key: pick.rowKey })
+    .then(() => undefined, () => undefined);
+
+  return pick;
+}
+
 /**
  * Structured copywriter — Alex Cattoni / Copy Posse pain-point storytelling.
  * Emits a full on-screen SCRIPT broken into hierarchy-aware beats (kicker +
@@ -84,6 +196,7 @@ async function generateCopy(input: {
   brandName: string;
   knowledgeBase: string | null;
   product?: Record<string, unknown> | null;
+  voice?: "you" | "i-we";
 }): Promise<CopyResult> {
   const key = process.env.LOVABLE_API_KEY;
   const fallback: CopyResult = {
@@ -102,6 +215,12 @@ async function generateCopy(input: {
   };
   if (!key) return fallback;
 
+  const voice = input.voice ?? (Math.random() < 0.5 ? "you" : "i-we");
+  const voiceRule =
+    voice === "you"
+      ? "• Use SECOND-PERSON voice throughout ('you', 'your'). Speak directly to the viewer. Do NOT slip into 'I' or 'we'."
+      : "• Use FIRST-PERSON confession voice throughout ('I', 'we', 'my', 'our'). Do NOT slip into 'you'.";
+
   const sys = [
     "You are a senior direct-response copywriter trained in the Alex Cattoni / Copy Posse school and in short-form kinetic typography reels.",
     "You are writing one 20–25 second reel. The output is not a slogan or a hook — it is a COMPLETE STORYTELLING SENTENCE broken into on-screen beats.",
@@ -110,9 +229,10 @@ async function generateCopy(input: {
     "• Speak like a real person mid-thought, not a marketer. No slogans, no rhyme, no cliches ('game-changer', 'level up', 'unlock', 'elevate', 'unleash').",
     "• Indirect storytelling that makes the viewer realise their own mistake, current situation, or pain point. Never accuse; observe.",
     "• Use specific concrete details: numbers, timeframes, a mistake, a small realisation. Concrete beats abstract.",
-    "• One second-person voice ('you', 'your') OR one first-person confession ('I', 'we'). Pick one and stay consistent.",
+    voiceRule,
     "• The complete sentence should read out loud like something said to a friend after a hard week — not a caption.",
     "• Length: total sentence 30–44 words across 9–14 beats. Never a single word per beat unless it lands like a hammer.",
+    "• The reel MUST be about today's specific product/topic below. Do not fall back to a generic mindset hook.",
     "",
     "BEAT / SCRIPT RULES (this is how the reel renders):",
     "• Split the sentence into 9–14 beats that read together as one continuous thought when watched in sequence.",
@@ -127,15 +247,15 @@ async function generateCopy(input: {
     '{"hook": string, "caption": string, "hashtags": string[], "script": [{ "layout": "single"|"stack", "lines": [{"text": string, "size": "small"|"hero"}], "hold": number }]}',
     "",
     "`hook` = the full sentence joined (for the reels table + social caption). `script` = the on-screen beats.",
-    "",
-    "EXAMPLE (for style only, do not copy):",
-    '{"hook":"the truth is the price of progress is pain, and most people quietly choose comfort over growth.","script":[{"layout":"stack","lines":[{"text":"the","size":"small"},{"text":"truth is","size":"hero"}],"hold":1},{"layout":"stack","lines":[{"text":"the price of","size":"small"},{"text":"progress","size":"hero"}],"hold":1.2},{"layout":"single","lines":[{"text":"is pain,","size":"hero"}],"hold":1.3},{"layout":"single","lines":[{"text":"and most people","size":"hero"}],"hold":0.9},{"layout":"stack","lines":[{"text":"quietly","size":"small"},{"text":"choose","size":"hero"}],"hold":1},{"layout":"stack","lines":[{"text":"comfort","size":"hero"},{"text":"over","size":"small"},{"text":"growth.","size":"hero"}],"hold":1.5}]}',
   ].join("\n");
 
   const user = [
     `Brand: ${input.brandName}`,
     input.knowledgeBase ? `Brand voice / positioning / audience:\n${input.knowledgeBase}` : "",
-    input.product ? `Today's product / topic:\n${JSON.stringify(input.product)}` : "",
+    input.product
+      ? `TODAY'S PRODUCT / TOPIC (the reel MUST be about this — not a generic mindset hook):\n${JSON.stringify(input.product)}`
+      : "No product row provided — write a brand-voice mindset hook.",
+    `Voice for this reel: ${voice === "you" ? "second-person (you/your)" : "first-person (I/we)"}`,
     `Creative seed (pick a fresh angle, don't repeat prior reels): ${Math.floor(Math.random() * 1e9)}`,
     "Write one full-sentence reel now, as JSON, matching every rule above.",
   ]
@@ -499,7 +619,9 @@ export const renderNow = createServerFn({ method: "POST" })
 
     const { data: brand, error: brandErr } = await supabase
       .from("brands")
-      .select("id, name, template_id, brand_colors, brand_fonts, logo_url, knowledge_base, reference_reel_url")
+      .select(
+        "id, name, template_id, brand_colors, brand_fonts, logo_url, knowledge_base, reference_reel_url, google_sheet_url, google_sheet_id, sheet_tab",
+      )
       .eq("id", data.brand_id)
       .maybeSingle();
     if (brandErr) throw new Error(brandErr.message);
@@ -524,6 +646,28 @@ export const renderNow = createServerFn({ method: "POST" })
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    // Rotate through the brand's product database (Google Sheet). Fetches
+    // published-CSV, filters against products_consumed, picks the next unused
+    // row, and records consumption so subsequent reels advance to new topics.
+    const pickedProduct = await pickNextProduct(supabaseAdmin, {
+      brandId: brand.id,
+      sheetUrl: brand.google_sheet_url,
+      sheetId: brand.google_sheet_id,
+      sheetTab: brand.sheet_tab,
+    });
+
+    // Alternate voice run-over-run so the feed doesn't feel one-note. Also
+    // let the AI pick when there's no history to lean on.
+    const { data: recentReels } = await supabase
+      .from("reels")
+      .select("hook")
+      .eq("brand_id", brand.id)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const lastHook = recentReels?.[0]?.hook ?? "";
+    const lastWasYou = /\b(you|your|you're|you've|you'll)\b/i.test(lastHook);
+    const voice: "you" | "i-we" = lastHook ? (lastWasYou ? "i-we" : "you") : Math.random() < 0.5 ? "you" : "i-we";
+
     // Auto-generate copy unless caller passed one in.
     const copy = data.hook
       ? {
@@ -535,7 +679,8 @@ export const renderNow = createServerFn({ method: "POST" })
       : await generateCopy({
           brandName: brand.name,
           knowledgeBase: brand.knowledge_base,
-          product: null,
+          product: pickedProduct?.row ?? null,
+          voice,
         });
 
     const { data: reel, error: reelErr } = await supabaseAdmin

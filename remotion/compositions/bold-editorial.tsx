@@ -1,20 +1,20 @@
-import { AbsoluteFill, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Easing, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { scriptFromHook, useGoogleFont, type Beat, type ReelProps } from "../brand";
 
 /**
  * BOLD EDITORIAL — reverse-engineered from the rendyr.video reference reel.
  *
- * Locked design language:
- *  - Full-bleed background alternates ACCENT ↔ BACKGROUND per beat.
- *    (green ↔ cream on the reference). Text is always PRIMARY on the light
- *    field and BACKGROUND on the dark field.
- *  - Layouts: "single" (one phrase centered) or "stack" (2-3 lines with
- *    dramatic size hierarchy — kicker on top, hero below, sometimes coda).
- *  - Watermark: tiny "@handle" top-center. No IG icon on this ref, just text.
- *  - Entrance: 4-frame fade + gentle blur-in (2px→0). No spin/shake.
- *  - Font: brand.fonts.display, weight 900. Slightly wider tracking than
- *    motion-poster to breathe on the light backgrounds.
+ * Design language locked (see motion-poster.tsx for the sibling template).
+ * This file only tunes the animation FEEL:
+ *  - Cubic-bezier easing on entrance and exit
+ *  - Entrance duration scales with the beat's hold weight
+ *  - Subtle 3-frame background crossfade instead of a raw digital cut
+ *  - Text exit (lift + fade) in the last 5 frames of each beat
  */
+
+const EASE_OUT = Easing.bezier(0.22, 1, 0.36, 1);
+const EASE_IN = Easing.bezier(0.64, 0, 0.78, 0);
+const BG_CROSSFADE_FRAMES = 3;
 
 function heroSize(text: string) {
   const clean = text.replace(/[^\p{L}\p{N} ']/gu, "");
@@ -31,17 +31,23 @@ function normalizeHandle(name?: string | null) {
   return `@${cleaned.toLowerCase().replace(/[^a-z0-9._]+/g, "")}`.slice(0, 28);
 }
 
-// Sequence-local frame — useCurrentFrame() inside a <Sequence> already
-// returns the local frame, so we don't subtract a startFrame here.
-function useBeatEntrance() {
+function useBeatMotion(hold: number, sequenceFrames: number) {
   const local = useCurrentFrame();
-  const opacity = interpolate(local, [0, 4], [0, 1], { extrapolateRight: "clamp" });
-  const blur = interpolate(local, [0, 5], [2.2, 0], { extrapolateRight: "clamp" });
-  const y = interpolate(local, [0, 6], [8, 0], { extrapolateRight: "clamp" });
+  const entranceLen = Math.round(interpolate(hold, [0.6, 1.5], [5, 9], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }));
+  const exitLen = 5;
+  const exitStart = Math.max(entranceLen + 6, sequenceFrames - exitLen);
+
+  const entranceOpacity = interpolate(local, [0, entranceLen], [0, 1], { easing: EASE_OUT, extrapolateRight: "clamp" });
+  const entranceY = interpolate(local, [0, entranceLen + 2], [10, 0], { easing: EASE_OUT, extrapolateRight: "clamp" });
+  const entranceBlur = interpolate(local, [0, entranceLen], [1.6, 0], { easing: EASE_OUT, extrapolateRight: "clamp" });
+
+  const exitOpacity = interpolate(local, [exitStart, exitStart + exitLen], [1, 0], { easing: EASE_IN, extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const exitY = interpolate(local, [exitStart, exitStart + exitLen], [0, -3], { easing: EASE_IN, extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+
   return {
-    opacity,
-    filter: `blur(${blur}px)`,
-    transform: `translateY(${y}px)`,
+    opacity: Math.min(entranceOpacity, exitOpacity),
+    filter: `blur(${entranceBlur}px)`,
+    transform: `translateY(${entranceY + exitY}px)`,
   };
 }
 
@@ -72,8 +78,9 @@ const BeatBody: React.FC<{
   beat: Beat;
   fg: string;
   fontFamily: string;
-}> = ({ beat, fg, fontFamily }) => {
-  const entrance = useBeatEntrance();
+  sequenceFrames: number;
+}> = ({ beat, fg, fontFamily, sequenceFrames }) => {
+  const motion = useBeatMotion(beat.hold ?? 1, sequenceFrames);
   const heroLineText = beat.lines.find((l) => l.size === "hero")?.text ?? beat.lines[0].text;
   const heroSz = heroSize(heroLineText);
   const smallSz = Math.max(44, Math.round(heroSz * 0.2));
@@ -89,9 +96,9 @@ const BeatBody: React.FC<{
           letterSpacing: `${-heroSz * 0.04}px`,
           lineHeight: 0.94,
           textAlign: "center",
-          opacity: entrance.opacity,
-          filter: entrance.filter,
-          transform: `${entrance.transform} translateY(-1.6%)`,
+          opacity: motion.opacity,
+          filter: motion.filter,
+          transform: `${motion.transform} translateY(-1.6%)`,
           padding: "0 70px",
         }}
       >
@@ -109,9 +116,9 @@ const BeatBody: React.FC<{
         flexDirection: "column",
         alignItems: "flex-start",
         gap: Math.round(heroSz * 0.02),
-        opacity: entrance.opacity,
-        filter: entrance.filter,
-        transform: `${entrance.transform} translateY(-1.6%)`,
+        opacity: motion.opacity,
+        filter: motion.filter,
+        transform: `${motion.transform} translateY(-1.6%)`,
         padding: "0 70px",
       }}
     >
@@ -136,12 +143,38 @@ const BeatBody: React.FC<{
   );
 };
 
+const BackgroundLayer: React.FC<{
+  spans: Array<{ from: number; frames: number }>;
+  colors: string[];
+  fallback: string;
+}> = ({ spans, colors, fallback }) => {
+  const frame = useCurrentFrame();
+  let idx = 0;
+  for (let i = 0; i < spans.length; i++) {
+    if (frame >= spans[i].from) idx = i;
+    else break;
+  }
+  const currentColor = colors[idx] ?? fallback;
+  const prevColor = idx > 0 ? colors[idx - 1] ?? fallback : currentColor;
+  const cutFrame = spans[idx].from;
+  const blend = interpolate(frame, [cutFrame, cutFrame + BG_CROSSFADE_FRAMES], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: EASE_OUT,
+  });
+  return (
+    <>
+      <AbsoluteFill style={{ backgroundColor: prevColor }} />
+      <AbsoluteFill style={{ backgroundColor: currentColor, opacity: blend }} />
+    </>
+  );
+};
+
 export const BoldEditorial: React.FC<ReelProps> = ({ hook, script, brand, handle: handleProp }) => {
   const { durationInFrames } = useVideoConfig();
   useGoogleFont(brand.fonts.display || "Poppins");
 
   const beats: Beat[] = script && script.length ? script : scriptFromHook(hook);
-  // Light/dark pair drawn from brand tokens.
   const bgLight = brand.colors.background || "#eae9e2";
   const bgDark = brand.colors.accent || "#1e6b2e";
   const fgOnLight = brand.colors.primary || "#0a0a0a";
@@ -152,27 +185,29 @@ export const BoldEditorial: React.FC<ReelProps> = ({ hook, script, brand, handle
   const totalW = weights.reduce((a, b) => a + b, 0);
   let cursor = 0;
   const spans = weights.map((w) => {
-    const frames = Math.max(15, Math.round((w / totalW) * durationInFrames));
+    const frames = Math.max(28, Math.round((w / totalW) * durationInFrames));
     const from = cursor;
     cursor += frames;
     return { from, frames };
   });
 
+  const bgColors = beats.map((_, i) => (i % 2 === 0 ? bgLight : bgDark));
+  const fgColors = beats.map((_, i) => (i % 2 === 0 ? fgOnLight : fgOnDark));
+
   const fontFamily = `'${brand.fonts.display || "Poppins"}', 'Helvetica Neue', Arial, sans-serif`;
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgLight, fontFamily }}>
+      <BackgroundLayer spans={spans} colors={bgColors} fallback={bgLight} />
       {beats.map((beat, i) => {
-        const isLight = i % 2 === 0;
-        const bg = isLight ? bgLight : bgDark;
-        const fg = isLight ? fgOnLight : fgOnDark;
+        const fg = fgColors[i];
         const { from, frames } = spans[i];
         return (
           <Sequence key={i} from={from} durationInFrames={frames} layout="none">
-            <AbsoluteFill style={{ backgroundColor: bg }}>
+            <AbsoluteFill>
               <Watermark handle={handle} color={fg} />
               <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
-                <BeatBody beat={beat} fg={fg} fontFamily={fontFamily} />
+                <BeatBody beat={beat} fg={fg} fontFamily={fontFamily} sequenceFrames={frames} />
               </AbsoluteFill>
             </AbsoluteFill>
           </Sequence>
