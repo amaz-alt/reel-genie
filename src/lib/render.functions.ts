@@ -507,7 +507,9 @@ export const renderNow = createServerFn({ method: "POST" })
 
     const { data: brand, error: brandErr } = await supabase
       .from("brands")
-      .select("id, name, template_id, brand_colors, brand_fonts, logo_url, knowledge_base, reference_reel_url")
+      .select(
+        "id, name, template_id, brand_colors, brand_fonts, logo_url, knowledge_base, reference_reel_url, google_sheet_url, google_sheet_id, sheet_tab",
+      )
       .eq("id", data.brand_id)
       .maybeSingle();
     if (brandErr) throw new Error(brandErr.message);
@@ -532,6 +534,28 @@ export const renderNow = createServerFn({ method: "POST" })
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    // Rotate through the brand's product database (Google Sheet). Fetches
+    // published-CSV, filters against products_consumed, picks the next unused
+    // row, and records consumption so subsequent reels advance to new topics.
+    const pickedProduct = await pickNextProduct(supabaseAdmin, {
+      brandId: brand.id,
+      sheetUrl: brand.google_sheet_url,
+      sheetId: brand.google_sheet_id,
+      sheetTab: brand.sheet_tab,
+    });
+
+    // Alternate voice run-over-run so the feed doesn't feel one-note. Also
+    // let the AI pick when there's no history to lean on.
+    const { data: recentReels } = await supabase
+      .from("reels")
+      .select("hook")
+      .eq("brand_id", brand.id)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const lastHook = recentReels?.[0]?.hook ?? "";
+    const lastWasYou = /\b(you|your|you're|you've|you'll)\b/i.test(lastHook);
+    const voice: "you" | "i-we" = lastHook ? (lastWasYou ? "i-we" : "you") : Math.random() < 0.5 ? "you" : "i-we";
+
     // Auto-generate copy unless caller passed one in.
     const copy = data.hook
       ? {
@@ -543,7 +567,8 @@ export const renderNow = createServerFn({ method: "POST" })
       : await generateCopy({
           brandName: brand.name,
           knowledgeBase: brand.knowledge_base,
-          product: null,
+          product: pickedProduct?.row ?? null,
+          voice,
         });
 
     const { data: reel, error: reelErr } = await supabaseAdmin
