@@ -84,6 +84,7 @@ async function generateCopy(input: {
   brandName: string;
   knowledgeBase: string | null;
   product?: Record<string, unknown> | null;
+  voice?: "you" | "i-we";
 }): Promise<CopyResult> {
   const key = process.env.LOVABLE_API_KEY;
   const fallback: CopyResult = {
@@ -102,6 +103,12 @@ async function generateCopy(input: {
   };
   if (!key) return fallback;
 
+  const voice = input.voice ?? (Math.random() < 0.5 ? "you" : "i-we");
+  const voiceRule =
+    voice === "you"
+      ? "• Use SECOND-PERSON voice throughout ('you', 'your'). Speak directly to the viewer. Do NOT slip into 'I' or 'we'."
+      : "• Use FIRST-PERSON confession voice throughout ('I', 'we', 'my', 'our'). Do NOT slip into 'you'.";
+
   const sys = [
     "You are a senior direct-response copywriter trained in the Alex Cattoni / Copy Posse school and in short-form kinetic typography reels.",
     "You are writing one 20–25 second reel. The output is not a slogan or a hook — it is a COMPLETE STORYTELLING SENTENCE broken into on-screen beats.",
@@ -110,9 +117,10 @@ async function generateCopy(input: {
     "• Speak like a real person mid-thought, not a marketer. No slogans, no rhyme, no cliches ('game-changer', 'level up', 'unlock', 'elevate', 'unleash').",
     "• Indirect storytelling that makes the viewer realise their own mistake, current situation, or pain point. Never accuse; observe.",
     "• Use specific concrete details: numbers, timeframes, a mistake, a small realisation. Concrete beats abstract.",
-    "• One second-person voice ('you', 'your') OR one first-person confession ('I', 'we'). Pick one and stay consistent.",
+    voiceRule,
     "• The complete sentence should read out loud like something said to a friend after a hard week — not a caption.",
     "• Length: total sentence 30–44 words across 9–14 beats. Never a single word per beat unless it lands like a hammer.",
+    "• The reel MUST be about today's specific product/topic below. Do not fall back to a generic mindset hook.",
     "",
     "BEAT / SCRIPT RULES (this is how the reel renders):",
     "• Split the sentence into 9–14 beats that read together as one continuous thought when watched in sequence.",
@@ -127,15 +135,15 @@ async function generateCopy(input: {
     '{"hook": string, "caption": string, "hashtags": string[], "script": [{ "layout": "single"|"stack", "lines": [{"text": string, "size": "small"|"hero"}], "hold": number }]}',
     "",
     "`hook` = the full sentence joined (for the reels table + social caption). `script` = the on-screen beats.",
-    "",
-    "EXAMPLE (for style only, do not copy):",
-    '{"hook":"the truth is the price of progress is pain, and most people quietly choose comfort over growth.","script":[{"layout":"stack","lines":[{"text":"the","size":"small"},{"text":"truth is","size":"hero"}],"hold":1},{"layout":"stack","lines":[{"text":"the price of","size":"small"},{"text":"progress","size":"hero"}],"hold":1.2},{"layout":"single","lines":[{"text":"is pain,","size":"hero"}],"hold":1.3},{"layout":"single","lines":[{"text":"and most people","size":"hero"}],"hold":0.9},{"layout":"stack","lines":[{"text":"quietly","size":"small"},{"text":"choose","size":"hero"}],"hold":1},{"layout":"stack","lines":[{"text":"comfort","size":"hero"},{"text":"over","size":"small"},{"text":"growth.","size":"hero"}],"hold":1.5}]}',
   ].join("\n");
 
   const user = [
     `Brand: ${input.brandName}`,
     input.knowledgeBase ? `Brand voice / positioning / audience:\n${input.knowledgeBase}` : "",
-    input.product ? `Today's product / topic:\n${JSON.stringify(input.product)}` : "",
+    input.product
+      ? `TODAY'S PRODUCT / TOPIC (the reel MUST be about this — not a generic mindset hook):\n${JSON.stringify(input.product)}`
+      : "No product row provided — write a brand-voice mindset hook.",
+    `Voice for this reel: ${voice === "you" ? "second-person (you/your)" : "first-person (I/we)"}`,
     `Creative seed (pick a fresh angle, don't repeat prior reels): ${Math.floor(Math.random() * 1e9)}`,
     "Write one full-sentence reel now, as JSON, matching every rule above.",
   ]
