@@ -192,10 +192,6 @@ async function pickNextProduct(
  * hero + coda), not just a single hook. The composition renders one beat at
  * a time with size contrast to match the reference reels.
  */
- * Emits a full on-screen SCRIPT broken into hierarchy-aware beats (kicker +
- * hero + coda), not just a single hook. The composition renders one beat at
- * a time with size contrast to match the reference reels.
- */
 async function generateCopy(input: {
   brandName: string;
   knowledgeBase: string | null;
