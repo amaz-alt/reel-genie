@@ -476,6 +476,8 @@ function BrandDetail() {
 
           <RenderJobsPanel brandId={brandId} />
 
+          <BrandSocialAccounts brandId={brandId} />
+
           <Card>
             <CardHeader>
               <CardTitle className="font-display text-lg">Recent reels</CardTitle>
