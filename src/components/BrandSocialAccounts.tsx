@@ -75,7 +75,8 @@ export function BrandSocialAccounts({ brandId }: { brandId: string }) {
     },
   });
 
-  const connectedByNetwork = new Map<string, typeof accounts extends Array<infer T> ? T : never>();
+  type Account = NonNullable<typeof accounts>[number];
+  const connectedByNetwork = new Map<string, Account>();
   (accounts ?? []).forEach((a) => connectedByNetwork.set(a.network, a));
 
   return (
