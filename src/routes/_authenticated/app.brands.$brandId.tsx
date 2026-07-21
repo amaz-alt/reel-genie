@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Loader2, Save, Trash2, Upload, Wand2, X } from "lucide-react";
 import { RenderJobsPanel } from "@/components/RenderJobsPanel";
+import { BrandSocialAccounts } from "@/components/BrandSocialAccounts";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { analyzeReferenceVideo } from "@/lib/reference-analysis";
@@ -474,6 +475,8 @@ function BrandDetail() {
           </Card>
 
           <RenderJobsPanel brandId={brandId} />
+
+          <BrandSocialAccounts brandId={brandId} />
 
           <Card>
             <CardHeader>
