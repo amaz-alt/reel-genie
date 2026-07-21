@@ -96,6 +96,53 @@ export type Database = {
           },
         ]
       }
+      brand_social_accounts: {
+        Row: {
+          brand_id: string
+          connected_at: string
+          created_at: string
+          id: string
+          network: string
+          network_unique_id: string | null
+          nickname: string | null
+          outstand_account_id: string
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          brand_id: string
+          connected_at?: string
+          created_at?: string
+          id?: string
+          network: string
+          network_unique_id?: string | null
+          nickname?: string | null
+          outstand_account_id: string
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          brand_id?: string
+          connected_at?: string
+          created_at?: string
+          id?: string
+          network?: string
+          network_unique_id?: string | null
+          nickname?: string | null
+          outstand_account_id?: string
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_social_accounts_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brands: {
         Row: {
           brand_colors: Json
