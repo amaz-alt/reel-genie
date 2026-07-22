@@ -170,6 +170,9 @@ function BrandDetail() {
       qc.invalidateQueries({ queryKey: ["render_jobs", brandId] });
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+
+
 
   const publish = useMutation({
     mutationFn: (reelId: string) => publishReel({ data: { reel_id: reelId } }),
