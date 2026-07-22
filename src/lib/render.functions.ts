@@ -692,10 +692,13 @@ export const renderNow = createServerFn({ method: "POST" })
         hashtags: copy.hashtags,
         template_id: templateId,
         status: "queued",
+        product_row_key: pickedProduct?.rowKey ?? null,
+        product_snapshot: pickedProduct?.row ?? null,
       })
       .select("id")
       .single();
     if (reelErr) throw new Error(reelErr.message);
+
 
     const storagePath = `${userId}/${brand.id}/reels/${reel.id}.mp4`;
 
