@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-/** Networks we currently expose in the UI. Outstand supports more; we can extend later. */
+/** Networks we currently expose in the UI. */
 export const SUPPORTED_NETWORKS = [
   "instagram",
   "tiktok",
@@ -15,89 +15,48 @@ export const SUPPORTED_NETWORKS = [
 ] as const;
 export type OutstandNetwork = (typeof SUPPORTED_NETWORKS)[number];
 
-const OUTSTAND_APP_BASE = "https://www.outstand.so";
+const OUTSTAND_API_BASE = "https://api.outstand.so";
 
-/** Sign brand+network into a state token so the public callback can't be spoofed. */
-async function signState(brandId: string, network: string): Promise<string> {
-  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!secret) throw new Error("Missing signing secret");
-  const exp = Math.floor(Date.now() / 1000) + 60 * 30; // 30 min
-  const payload = `${brandId}.${network}.${exp}`;
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sigBuf = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
-  const sig = Buffer.from(new Uint8Array(sigBuf)).toString("base64url");
-  return `${payload}.${sig}`;
-}
+export type OutstandAccount = {
+  id: string;
+  network: string;
+  username: string | null;
+  nickname: string | null;
+  network_unique_id: string | null;
+};
 
-export async function verifyState(state: string): Promise<{ brandId: string; network: string } | null> {
-  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!secret) return null;
-  const parts = state.split(".");
-  if (parts.length !== 4) return null;
-  const [brandId, network, expStr, sig] = parts;
-  const payload = `${brandId}.${network}.${expStr}`;
-  const exp = Number(expStr);
-  if (!Number.isFinite(exp) || Date.now() / 1000 > exp) return null;
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const expectedBuf = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
-  const expected = Buffer.from(new Uint8Array(expectedBuf)).toString("base64url");
-  if (expected !== sig) return null;
-  return { brandId, network };
-}
-
-/* -------------------- start connect: returns Outstand authorize URL -------------------- */
-export const startOutstandConnect = createServerFn({ method: "POST" })
+/* -------------------- list accounts already connected in Outstand -------------------- */
+export const listOutstandAccounts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
-    z
-      .object({
-        brand_id: z.string().uuid(),
-        network: z.enum(SUPPORTED_NETWORKS),
-      })
-      .parse(data),
-  )
-  .handler(async ({ data, context }) => {
-    const orgId = process.env.OUTSTAND_ORGANIZATION_ID;
-    const appUrl = process.env.PUBLIC_APP_URL;
-    if (!orgId) throw new Error("OUTSTAND_ORGANIZATION_ID is not configured");
-    if (!appUrl) throw new Error("PUBLIC_APP_URL is not configured");
+  .handler(async (): Promise<OutstandAccount[]> => {
+    const apiKey = process.env.OUTSTAND_API_KEY;
+    if (!apiKey) throw new Error("OUTSTAND_API_KEY is not configured");
 
-    // Owner check.
-    const { data: brand, error } = await context.supabase
-      .from("brands")
-      .select("id")
-      .eq("id", data.brand_id)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!brand) throw new Error("Brand not found");
-
-    const state = await signState(data.brand_id, data.network);
-    // Bake state INTO redirect_uri; Outstand appends success/account_id/username as extra params.
-    const callback = new URL("/api/public/outstand/callback", appUrl);
-    callback.searchParams.set("state", state);
-
-    const authorize = new URL(
-      `/app/api/socials/${data.network}/${orgId}`,
-      OUTSTAND_APP_BASE,
-    );
-    authorize.searchParams.set("redirect_uri", callback.toString());
-
-    return { url: authorize.toString() };
+    const res = await fetch(`${OUTSTAND_API_BASE}/v1/social-accounts`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Outstand list failed [${res.status}]: ${body}`);
+    }
+    const json = (await res.json()) as {
+      data?: Array<Record<string, unknown>>;
+      accounts?: Array<Record<string, unknown>>;
+    };
+    const rows = json.data ?? json.accounts ?? [];
+    return rows.map((r) => ({
+      id: String(r.id ?? r.account_id ?? ""),
+      network: String(r.network ?? ""),
+      username: (r.username as string | null) ?? null,
+      nickname: (r.nickname as string | null) ?? null,
+      network_unique_id:
+        (r.network_unique_id as string | null) ??
+        (r.networkUniqueId as string | null) ??
+        null,
+    })).filter((r) => r.id && r.network);
   });
 
-/* -------------------- list connected accounts for a brand -------------------- */
+/* -------------------- list accounts linked to this brand -------------------- */
 export const listBrandSocialAccounts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ brand_id: z.string().uuid() }).parse(data))
@@ -111,15 +70,59 @@ export const listBrandSocialAccounts = createServerFn({ method: "GET" })
     return rows ?? [];
   });
 
-/* -------------------- disconnect (local only; Outstand keeps the account) -------------------- */
-export const disconnectSocialAccount = createServerFn({ method: "POST" })
+/* -------------------- save selected accounts for a brand (replace set) -------------------- */
+export const setBrandOutstandAccounts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        brand_id: z.string().uuid(),
+        accounts: z.array(
+          z.object({
+            outstand_account_id: z.string().min(1),
+            network: z.string().min(1),
+            username: z.string().nullable().optional(),
+            nickname: z.string().nullable().optional(),
+            network_unique_id: z.string().nullable().optional(),
+          }),
+        ),
+      })
+      .parse(data),
+  )
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
+    // Verify ownership via RLS-scoped query.
+    const { data: brand, error: brandErr } = await context.supabase
+      .from("brands")
+      .select("id")
+      .eq("id", data.brand_id)
+      .maybeSingle();
+    if (brandErr) throw new Error(brandErr.message);
+    if (!brand) throw new Error("Brand not found");
+
+    // Replace strategy: delete rows for this brand, insert selected.
+    const { error: delErr } = await context.supabase
       .from("brand_social_accounts")
       .delete()
-      .eq("id", data.id);
-    if (error) throw new Error(error.message);
-    return { ok: true };
+      .eq("brand_id", data.brand_id);
+    if (delErr) throw new Error(delErr.message);
+
+    if (data.accounts.length === 0) return { ok: true, count: 0 };
+
+    const now = new Date().toISOString();
+    const rows = data.accounts.map((a) => ({
+      brand_id: data.brand_id,
+      network: a.network,
+      outstand_account_id: a.outstand_account_id,
+      username: a.username ?? null,
+      nickname: a.nickname ?? null,
+      network_unique_id: a.network_unique_id ?? null,
+      connected_at: now,
+      updated_at: now,
+    }));
+    const { error: insErr } = await context.supabase
+      .from("brand_social_accounts")
+      .insert(rows);
+    if (insErr) throw new Error(insErr.message);
+
+    return { ok: true, count: rows.length };
   });
