@@ -12,6 +12,8 @@ import {
   deleteBrandReference,
 } from "@/lib/brands.functions";
 import { renderNow } from "@/lib/render.functions";
+import { publishReel } from "@/lib/outstand.functions";
+
 import { TEMPLATES } from "@/lib/templates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -169,6 +171,22 @@ function BrandDetail() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+
+
+  const publish = useMutation({
+    mutationFn: (reelId: string) => publishReel({ data: { reel_id: reelId } }),
+    onSuccess: (r) => {
+      const okList = r.results.filter((x) => x.ok).map((x) => x.network);
+      const failList = r.results.filter((x) => !x.ok);
+      if (r.allOk) toast.success(`Published to ${okList.join(", ")}`);
+      else if (r.ok) toast.warning(`Published to ${okList.join(", ")}. Failed: ${failList.map((f) => f.network).join(", ")}`);
+      else toast.error(`Publish failed: ${failList.map((f) => `${f.network}: ${f.error}`).join(" | ")}`);
+      qc.invalidateQueries({ queryKey: ["brand", brandId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
 
   const removeRef = useMutation({
     mutationFn: (id: string) => deleteBrandReference({ data: { id } }),
@@ -524,32 +542,53 @@ function BrandDetail() {
                         </div>
                       </div>
                       {r.video_url ? (
-                        <div className="space-y-2">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                           <video
                             src={r.video_url}
                             controls
                             playsInline
                             className="w-full max-w-[280px] rounded-md border border-border bg-black aspect-[9/16]"
                           />
-                          <div className="flex gap-3 text-xs">
-                            <a
-                              href={r.video_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-primary underline"
+                          <div className="flex flex-1 flex-col gap-2">
+                            <Button
+                              size="sm"
+                              disabled={
+                                publish.isPending ||
+                                r.status === "publishing" ||
+                                r.status === "published"
+                              }
+                              onClick={() => publish.mutate(r.id)}
                             >
-                              Open in new tab
-                            </a>
-                            <a
-                              href={r.video_url}
-                              download
-                              className="text-primary underline"
-                            >
-                              Download MP4
-                            </a>
+                              {publish.isPending && publish.variables === r.id ? (
+                                <Loader2 className="mr-2 size-4 animate-spin" />
+                              ) : null}
+                              {r.status === "published"
+                                ? "Published"
+                                : r.status === "publishing"
+                                  ? "Publishing…"
+                                  : "Publish in one go"}
+                            </Button>
+                            <div className="flex gap-3 text-xs">
+                              <a
+                                href={r.video_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary underline"
+                              >
+                                Open in new tab
+                              </a>
+                              <a
+                                href={r.video_url}
+                                download
+                                className="text-primary underline"
+                              >
+                                Download MP4
+                              </a>
+                            </div>
                           </div>
                         </div>
                       ) : null}
+
                     </div>
                   ))}
                 </div>
