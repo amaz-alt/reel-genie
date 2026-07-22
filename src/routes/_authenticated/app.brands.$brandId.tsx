@@ -542,32 +542,53 @@ function BrandDetail() {
                         </div>
                       </div>
                       {r.video_url ? (
-                        <div className="space-y-2">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                           <video
                             src={r.video_url}
                             controls
                             playsInline
                             className="w-full max-w-[280px] rounded-md border border-border bg-black aspect-[9/16]"
                           />
-                          <div className="flex gap-3 text-xs">
-                            <a
-                              href={r.video_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-primary underline"
+                          <div className="flex flex-1 flex-col gap-2">
+                            <Button
+                              size="sm"
+                              disabled={
+                                publish.isPending ||
+                                r.status === "publishing" ||
+                                r.status === "published"
+                              }
+                              onClick={() => publish.mutate(r.id)}
                             >
-                              Open in new tab
-                            </a>
-                            <a
-                              href={r.video_url}
-                              download
-                              className="text-primary underline"
-                            >
-                              Download MP4
-                            </a>
+                              {publish.isPending && publish.variables === r.id ? (
+                                <Loader2 className="mr-2 size-4 animate-spin" />
+                              ) : null}
+                              {r.status === "published"
+                                ? "Published"
+                                : r.status === "publishing"
+                                  ? "Publishing…"
+                                  : "Publish in one go"}
+                            </Button>
+                            <div className="flex gap-3 text-xs">
+                              <a
+                                href={r.video_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary underline"
+                              >
+                                Open in new tab
+                              </a>
+                              <a
+                                href={r.video_url}
+                                download
+                                className="text-primary underline"
+                              >
+                                Download MP4
+                              </a>
+                            </div>
                           </div>
                         </div>
                       ) : null}
+
                     </div>
                   ))}
                 </div>
