@@ -170,7 +170,20 @@ function BrandDetail() {
       qc.invalidateQueries({ queryKey: ["render_jobs", brandId] });
     },
     onError: (e: Error) => toast.error(e.message),
+
+  const publish = useMutation({
+    mutationFn: (reelId: string) => publishReel({ data: { reel_id: reelId } }),
+    onSuccess: (r) => {
+      const okList = r.results.filter((x) => x.ok).map((x) => x.network);
+      const failList = r.results.filter((x) => !x.ok);
+      if (r.allOk) toast.success(`Published to ${okList.join(", ")}`);
+      else if (r.ok) toast.warning(`Published to ${okList.join(", ")}. Failed: ${failList.map((f) => f.network).join(", ")}`);
+      else toast.error(`Publish failed: ${failList.map((f) => `${f.network}: ${f.error}`).join(" | ")}`);
+      qc.invalidateQueries({ queryKey: ["brand", brandId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
+
 
   const removeRef = useMutation({
     mutationFn: (id: string) => deleteBrandReference({ data: { id } }),
