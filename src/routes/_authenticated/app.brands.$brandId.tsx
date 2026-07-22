@@ -12,6 +12,8 @@ import {
   deleteBrandReference,
 } from "@/lib/brands.functions";
 import { renderNow } from "@/lib/render.functions";
+import { publishReel } from "@/lib/outstand.functions";
+
 import { TEMPLATES } from "@/lib/templates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
