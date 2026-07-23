@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Loader2, RefreshCw, Save, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,13 +43,19 @@ export function BrandSocialAccounts({ brandId }: { brandId: string }) {
   });
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Board IDs are keyed by Outstand account ID (only relevant for Pinterest).
+  const [boardIds, setBoardIds] = useState<Record<string, string>>({});
   const [initialized, setInitialized] = useState(false);
 
-  // Seed selection from currently linked accounts once both queries loaded.
   useEffect(() => {
     if (initialized) return;
     if (!linkedQ.data) return;
     setSelected(new Set(linkedQ.data.map((a) => a.outstand_account_id)));
+    const boards: Record<string, string> = {};
+    for (const a of linkedQ.data) {
+      if (a.pinterest_board_id) boards[a.outstand_account_id] = a.pinterest_board_id;
+    }
+    setBoardIds(boards);
     setInitialized(true);
   }, [linkedQ.data, initialized]);
 
@@ -65,6 +72,7 @@ export function BrandSocialAccounts({ brandId }: { brandId: string }) {
           username: a.username,
           nickname: a.nickname,
           network_unique_id: a.network_unique_id,
+          pinterest_board_id: a.network === "pinterest" ? (boardIds[a.id]?.trim() || null) : null,
         }));
       return setBrandOutstandAccounts({ data: { brand_id: brandId, accounts } });
     },
@@ -87,7 +95,6 @@ export function BrandSocialAccounts({ brandId }: { brandId: string }) {
   };
 
   const accounts = outstandQ.data ?? [];
-  // Group by network for a cleaner list.
   const grouped = accounts.reduce<Record<string, OutstandAccount[]>>((acc, a) => {
     (acc[a.network] ??= []).push(a);
     return acc;
@@ -115,9 +122,8 @@ export function BrandSocialAccounts({ brandId }: { brandId: string }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          These are the accounts connected in your Outstand workspace. Tick the ones this brand
-          should publish to — the schedule will post only to selected accounts. Pinterest pins use
-          the product URL + a short AI caption.
+          Tick the Outstand accounts this brand should publish to. For Pinterest, paste the
+          board ID (numbers only, from the board URL) — Outstand rejects pins without it.
         </p>
 
         {outstandQ.isLoading || linkedQ.isLoading ? (
@@ -150,26 +156,41 @@ export function BrandSocialAccounts({ brandId }: { brandId: string }) {
                   </div>
                   {grouped[network].map((a) => {
                     const checked = selected.has(a.id);
+                    const isPinterest = a.network === "pinterest";
                     return (
-                      <label
+                      <div
                         key={a.id}
-                        className="flex items-center gap-3 px-2 py-2 rounded hover:bg-muted/40 cursor-pointer"
+                        className="flex flex-col gap-1 px-2 py-2 rounded hover:bg-muted/40"
                       >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={() => toggle(a.id)}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm truncate">
-                            {network} @{a.username ?? a.nickname ?? a.id}
-                          </div>
-                          {a.nickname && a.username && a.nickname !== a.username ? (
-                            <div className="text-xs text-muted-foreground truncate">
-                              {a.nickname}
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={() => toggle(a.id)}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm truncate">
+                              {network} @{a.username ?? a.nickname ?? a.id}
                             </div>
-                          ) : null}
-                        </div>
-                      </label>
+                            {a.nickname && a.username && a.nickname !== a.username ? (
+                              <div className="text-xs text-muted-foreground truncate">
+                                {a.nickname}
+                              </div>
+                            ) : null}
+                          </div>
+                        </label>
+                        {isPinterest && checked ? (
+                          <div className="pl-8 pr-1">
+                            <Input
+                              value={boardIds[a.id] ?? ""}
+                              onChange={(e) =>
+                                setBoardIds((prev) => ({ ...prev, [a.id]: e.target.value }))
+                              }
+                              placeholder="Pinterest board ID (e.g. 123456789012345678)"
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        ) : null}
+                      </div>
                     );
                   })}
                 </div>
