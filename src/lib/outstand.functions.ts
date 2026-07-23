@@ -68,7 +68,7 @@ export const listBrandSocialAccounts = createServerFn({ method: "GET" })
       .eq("brand_id", data.brand_id)
       .order("connected_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return (rows ?? []) as Array<{
+    return (rows ?? []) as unknown as Array<{
       id: string;
       network: string;
       outstand_account_id: string;
