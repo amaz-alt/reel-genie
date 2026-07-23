@@ -1,0 +1,1 @@
+ALTER TABLE public.brand_social_accounts ADD COLUMN IF NOT EXISTS pinterest_board_id text;
