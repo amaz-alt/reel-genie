@@ -106,6 +106,7 @@ export type Database = {
           network_unique_id: string | null
           nickname: string | null
           outstand_account_id: string
+          pinterest_board_id: string | null
           updated_at: string
           username: string | null
         }
@@ -118,6 +119,7 @@ export type Database = {
           network_unique_id?: string | null
           nickname?: string | null
           outstand_account_id: string
+          pinterest_board_id?: string | null
           updated_at?: string
           username?: string | null
         }
@@ -130,6 +132,7 @@ export type Database = {
           network_unique_id?: string | null
           nickname?: string | null
           outstand_account_id?: string
+          pinterest_board_id?: string | null
           updated_at?: string
           username?: string | null
         }

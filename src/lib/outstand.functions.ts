@@ -63,11 +63,20 @@ export const listBrandSocialAccounts = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
       .from("brand_social_accounts")
-      .select("id, network, outstand_account_id, username, nickname, connected_at")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .select("id, network, outstand_account_id, username, nickname, connected_at, pinterest_board_id" as any)
       .eq("brand_id", data.brand_id)
       .order("connected_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return rows ?? [];
+    return (rows ?? []) as unknown as Array<{
+      id: string;
+      network: string;
+      outstand_account_id: string;
+      username: string | null;
+      nickname: string | null;
+      connected_at: string;
+      pinterest_board_id: string | null;
+    }>;
   });
 
 /* -------------------- save selected accounts for a brand (replace set) -------------------- */
@@ -84,13 +93,13 @@ export const setBrandOutstandAccounts = createServerFn({ method: "POST" })
             username: z.string().nullable().optional(),
             nickname: z.string().nullable().optional(),
             network_unique_id: z.string().nullable().optional(),
+            pinterest_board_id: z.string().nullable().optional(),
           }),
         ),
       })
       .parse(data),
   )
   .handler(async ({ data, context }) => {
-    // Verify ownership via RLS-scoped query.
     const { data: brand, error: brandErr } = await context.supabase
       .from("brands")
       .select("id")
@@ -99,7 +108,6 @@ export const setBrandOutstandAccounts = createServerFn({ method: "POST" })
     if (brandErr) throw new Error(brandErr.message);
     if (!brand) throw new Error("Brand not found");
 
-    // Replace strategy: delete rows for this brand, insert selected.
     const { error: delErr } = await context.supabase
       .from("brand_social_accounts")
       .delete()
@@ -116,20 +124,20 @@ export const setBrandOutstandAccounts = createServerFn({ method: "POST" })
       username: a.username ?? null,
       nickname: a.nickname ?? null,
       network_unique_id: a.network_unique_id ?? null,
+      pinterest_board_id: a.pinterest_board_id?.trim() || null,
       connected_at: now,
       updated_at: now,
     }));
     const { error: insErr } = await context.supabase
       .from("brand_social_accounts")
-      .insert(rows);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .insert(rows as any);
     if (insErr) throw new Error(insErr.message);
 
     return { ok: true, count: rows.length };
   });
 
 /* -------------------- publish a rendered reel to selected accounts -------------------- */
-
-const NETWORKS_NEEDING_LINK = new Set(["pinterest"]);
 
 function pickString(row: Record<string, unknown> | null | undefined, keys: string[]): string | null {
   if (!row) return null;
@@ -156,7 +164,6 @@ function buildCaption(opts: {
   const base = [caption?.trim() || hook.trim()].filter(Boolean).join(" ");
 
   if (network === "pinterest") {
-    // Pinterest algorithm: title-y keyword-rich description + link + hashtags.
     const parts = [
       title ? `${title} — ${base}` : base,
       keywords ? `Keywords: ${keywords}` : "",
@@ -166,8 +173,42 @@ function buildCaption(opts: {
     return parts.join("\n").trim();
   }
 
-  // IG/TikTok/YT-shorts style: caption + hashtags on new line.
   return [base, tags.length ? `\n${tags.slice(0, 12).join(" ")}` : ""].filter(Boolean).join("\n").trim();
+}
+
+type OutstandAccountResult = {
+  id?: string;
+  network?: string;
+  username?: string | null;
+  status?: string;
+  error?: string | null;
+  platformPostId?: string | null;
+  platformPostUrl?: string | null;
+  publishedAt?: string | null;
+};
+
+async function fetchOutstandPost(apiKey: string, postId: string) {
+  const res = await fetch(`${OUTSTAND_API_BASE}/v1/posts/${postId}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!res.ok) throw new Error(`Outstand GET post ${postId} failed: ${res.status}`);
+  const json = (await res.json()) as { post?: { socialAccounts?: OutstandAccountResult[] } };
+  return json.post?.socialAccounts ?? [];
+}
+
+async function pollOutstandOutcome(
+  apiKey: string,
+  postId: string,
+  opts: { tries: number; intervalMs: number },
+): Promise<OutstandAccountResult[]> {
+  let last: OutstandAccountResult[] = [];
+  for (let i = 0; i < opts.tries; i++) {
+    last = await fetchOutstandPost(apiKey, postId);
+    const stillPending = last.some((a) => a.status === "pending" || !a.status);
+    if (!stillPending) return last;
+    await new Promise((r) => setTimeout(r, opts.intervalMs));
+  }
+  return last;
 }
 
 export const publishReel = createServerFn({ method: "POST" })
@@ -177,7 +218,6 @@ export const publishReel = createServerFn({ method: "POST" })
     const apiKey = process.env.OUTSTAND_API_KEY;
     if (!apiKey) throw new Error("OUTSTAND_API_KEY is not configured");
 
-    // Load reel (RLS-scoped) + brand's connected accounts.
     const { data: reel, error: reelErr } = await context.supabase
       .from("reels")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -198,12 +238,18 @@ export const publishReel = createServerFn({ method: "POST" })
     };
     if (!r.video_url) throw new Error("Reel has no rendered video yet");
 
-    const { data: accounts, error: accErr } = await context.supabase
+    const { data: accountsRaw, error: accErr } = await context.supabase
       .from("brand_social_accounts")
-      .select("outstand_account_id, network")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .select("outstand_account_id, network, pinterest_board_id" as any)
       .eq("brand_id", r.brand_id);
     if (accErr) throw new Error(accErr.message);
-    if (!accounts || accounts.length === 0) {
+    const accounts = (accountsRaw ?? []) as unknown as Array<{
+      outstand_account_id: string;
+      network: string;
+      pinterest_board_id: string | null;
+    }>;
+    if (accounts.length === 0) {
       throw new Error("No social accounts linked to this brand. Connect accounts first.");
     }
 
@@ -215,40 +261,75 @@ export const publishReel = createServerFn({ method: "POST" })
     const hashtags = Array.isArray(r.hashtags) ? r.hashtags : [];
     const product = r.product_snapshot ?? null;
     const link = pickString(product, ["url", "link", "product_url", "landing_page", "landing_page_url"]);
+    const title = pickString(product, ["title", "name", "product", "topic"]);
 
-    // Group accounts by network so per-network caption can differ (Pinterest needs link + keywords).
-    const byNetwork = new Map<string, string[]>();
+    // Group accounts by network (each network gets its own POST so we can tune
+    // content + per-network config, e.g. Pinterest board).
+    const byNetwork = new Map<string, typeof accounts>();
     for (const a of accounts) {
       const list = byNetwork.get(a.network) ?? [];
-      list.push(a.outstand_account_id);
+      list.push(a);
       byNetwork.set(a.network, list);
     }
 
-    const results: Array<{ network: string; ok: boolean; postId?: string; error?: string }> = [];
+    const results: Array<{
+      network: string;
+      ok: boolean;
+      postId?: string;
+      error?: string;
+      accounts?: OutstandAccountResult[];
+    }> = [];
     const postIds: Array<{ network: string; post_id: string; account_ids: string[] }> = [];
 
-    for (const [network, accountIds] of byNetwork.entries()) {
-      const content = buildCaption({
-        network,
-        hook,
-        caption: r.caption,
-        hashtags,
-        product,
-      });
+    for (const [network, accs] of byNetwork.entries()) {
+      const accountIds = accs.map((a) => a.outstand_account_id);
+      const content = buildCaption({ network, hook, caption: r.caption, hashtags, product });
+
+      // Media MUST live inside containers[].media — top-level media is silently
+      // dropped and Instagram then rejects the post as "no media attached".
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const body: Record<string, any> = {
-        content,
         accounts: accountIds,
-        media: [{ url: r.video_url, filename, type: "video" }],
+        containers: [
+          {
+            content,
+            media: [{ url: r.video_url, filename }],
+          },
+        ],
       };
-      if (NETWORKS_NEEDING_LINK.has(network) && link) {
-        // Outstand normalises platform-specific fields; include `link` and `title`
-        // at the top level so Pinterest gets a landing-page URL and pin title.
-        body.link = link;
-        const title = pickString(product, ["title", "name", "product", "topic"]);
+
+      if (network === "pinterest") {
+        const boardIds = Array.from(
+          new Set(accs.map((a) => a.pinterest_board_id).filter((b): b is string => !!b && b.trim().length > 0)),
+        );
+        if (boardIds.length === 0) {
+          results.push({
+            network,
+            ok: false,
+            error:
+              "Pinterest board_id missing. Open Social accounts, paste the Pinterest board ID for this account, and save.",
+          });
+          continue;
+        }
+        // Outstand rejects Pinterest posts without a board_id in
+        // pinterestConfiguration; send both shapes it recognises.
+        body.pinterestConfiguration = {
+          board_id: boardIds[0],
+          ...(title ? { title } : {}),
+          ...(link ? { link } : {}),
+        };
+        body.networkOverrideConfiguration = {
+          pinterest: {
+            board_id: boardIds[0],
+            ...(title ? { title } : {}),
+            ...(link ? { link } : {}),
+          },
+        };
+        if (link) body.link = link;
         if (title) body.title = title;
       }
 
+      let postId = "";
       try {
         const res = await fetch(`${OUTSTAND_API_BASE}/v1/posts/`, {
           method: "POST",
@@ -264,27 +345,85 @@ export const publishReel = createServerFn({ method: "POST" })
           continue;
         }
         const json = (await res.json()) as { post?: { id?: string } };
-        const postId = json.post?.id ?? "";
-        results.push({ network, ok: true, postId });
-        if (postId) postIds.push({ network, post_id: postId, account_ids: accountIds });
+        postId = json.post?.id ?? "";
       } catch (e) {
         results.push({ network, ok: false, error: e instanceof Error ? e.message : String(e) });
+        continue;
+      }
+
+      if (!postId) {
+        results.push({ network, ok: false, error: "Outstand did not return a post id" });
+        continue;
+      }
+
+      // Poll per-account outcome. Outstand fans out asynchronously — a 2xx
+      // response only means "queued", not "delivered". Ground truth lives on
+      // socialAccounts[].status.
+      let outcome: OutstandAccountResult[] = [];
+      try {
+        outcome = await pollOutstandOutcome(apiKey, postId, { tries: 8, intervalMs: 5000 });
+      } catch (e) {
+        results.push({
+          network,
+          ok: false,
+          postId,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        continue;
+      }
+
+      const failed = outcome.filter((a) => a.status === "failed");
+      const pending = outcome.filter((a) => !a.status || a.status === "pending");
+      const published = outcome.filter((a) => a.status === "published");
+
+      if (failed.length === 0 && pending.length === 0 && published.length > 0) {
+        results.push({ network, ok: true, postId, accounts: outcome });
+        postIds.push({ network, post_id: postId, account_ids: accountIds });
+      } else if (published.length > 0 && failed.length > 0) {
+        results.push({
+          network,
+          ok: false,
+          postId,
+          error: `Partial fail: ${failed.map((a) => `${a.username ?? a.id}: ${a.error}`).join(" | ")}`,
+          accounts: outcome,
+        });
+        postIds.push({ network, post_id: postId, account_ids: accountIds });
+      } else if (failed.length > 0) {
+        results.push({
+          network,
+          ok: false,
+          postId,
+          error: failed.map((a) => `${a.username ?? a.id}: ${a.error}`).join(" | "),
+          accounts: outcome,
+        });
+      } else {
+        results.push({
+          network,
+          ok: false,
+          postId,
+          error: `Still pending after poll window. Check Outstand for post ${postId}.`,
+          accounts: outcome,
+        });
       }
     }
 
-    const anyOk = results.some((r) => r.ok);
-    const allOk = results.every((r) => r.ok);
+    const anyOk = results.some((x) => x.ok);
+    const allOk = results.every((x) => x.ok);
     const now = new Date().toISOString();
     await supabaseAdmin
       .from("reels")
       .update({
-        status: anyOk ? "published" : "failed",
-        published_at: anyOk ? now : null,
+        status: allOk ? "published" : "failed",
+        published_at: allOk ? now : null,
         outstand_post_ids: postIds,
-        error: allOk ? null : results.filter((r) => !r.ok).map((r) => `${r.network}: ${r.error}`).join(" | "),
+        error: allOk
+          ? null
+          : results
+              .filter((x) => !x.ok)
+              .map((x) => `${x.network}: ${x.error}`)
+              .join(" | "),
       })
       .eq("id", r.id);
 
     return { ok: anyOk, allOk, results };
   });
-
