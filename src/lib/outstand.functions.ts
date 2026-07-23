@@ -244,7 +244,7 @@ export const publishReel = createServerFn({ method: "POST" })
       .select("outstand_account_id, network, pinterest_board_id" as any)
       .eq("brand_id", r.brand_id);
     if (accErr) throw new Error(accErr.message);
-    const accounts = (accountsRaw ?? []) as Array<{
+    const accounts = (accountsRaw ?? []) as unknown as Array<{
       outstand_account_id: string;
       network: string;
       pinterest_board_id: string | null;
