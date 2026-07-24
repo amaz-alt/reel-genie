@@ -263,6 +263,54 @@ export const publishReel = createServerFn({ method: "POST" })
     const link = pickString(product, ["url", "link", "product_url", "landing_page", "landing_page_url"]);
     const title = pickString(product, ["title", "name", "product", "topic"]);
 
+    // Upload the mp4 to Outstand's media store so it's tagged with
+    // content_type=video/mp4. Passing a raw Supabase signed URL made Instagram
+    // treat the post as an image (first frame only) because their ingester
+    // couldn't reliably determine the mime type. This also unblocks Pinterest
+    // video Pins which require a real video media object.
+    let outstandMediaUrl = r.video_url;
+    try {
+      const step1 = await fetch(`${OUTSTAND_API_BASE}/v1/media/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ filename, content_type: "video/mp4" }),
+      });
+      if (!step1.ok) throw new Error(`media/upload ${step1.status}: ${await step1.text()}`);
+      const s1 = (await step1.json()) as { data?: { id?: string; upload_url?: string } };
+      const mediaId = s1.data?.id;
+      const uploadUrl = s1.data?.upload_url;
+      if (!mediaId || !uploadUrl) throw new Error("media/upload missing id/upload_url");
+
+      const videoRes = await fetch(r.video_url);
+      if (!videoRes.ok) throw new Error(`fetch video ${videoRes.status}`);
+      const videoBuf = await videoRes.arrayBuffer();
+
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "video/mp4" },
+        body: videoBuf,
+      });
+      if (!putRes.ok) throw new Error(`PUT upload ${putRes.status}: ${await putRes.text()}`);
+
+      const confirm = await fetch(`${OUTSTAND_API_BASE}/v1/media/${mediaId}/confirm`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ size: videoBuf.byteLength }),
+      });
+      if (!confirm.ok) throw new Error(`media/confirm ${confirm.status}: ${await confirm.text()}`);
+      const cj = (await confirm.json()) as { url?: string; data?: { url?: string } };
+      const finalUrl = cj.url ?? cj.data?.url;
+      if (!finalUrl) throw new Error("confirm missing url");
+      outstandMediaUrl = finalUrl;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await supabaseAdmin
+        .from("reels")
+        .update({ status: "failed", error: `Video upload to Outstand failed: ${msg}` })
+        .eq("id", r.id);
+      throw new Error(`Video upload to Outstand failed: ${msg}`);
+    }
+
     // Group accounts by network (each network gets its own POST so we can tune
     // content + per-network config, e.g. Pinterest board).
     const byNetwork = new Map<string, typeof accounts>();
@@ -285,18 +333,21 @@ export const publishReel = createServerFn({ method: "POST" })
       const accountIds = accs.map((a) => a.outstand_account_id);
       const content = buildCaption({ network, hook, caption: r.caption, hashtags, product });
 
-      // Media MUST live inside containers[].media — top-level media is silently
-      // dropped and Instagram then rejects the post as "no media attached".
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const body: Record<string, any> = {
         accounts: accountIds,
         containers: [
           {
             content,
-            media: [{ url: r.video_url, filename }],
+            media: [{ url: outstandMediaUrl, filename }],
           },
         ],
       };
+
+      if (network === "instagram") {
+        // Force Instagram to treat 9:16 mp4 as a Reel, not a static feed post.
+        body.instagram = { media_type: "REELS" };
+      }
 
       if (network === "pinterest") {
         const boardIds = Array.from(
@@ -311,23 +362,17 @@ export const publishReel = createServerFn({ method: "POST" })
           });
           continue;
         }
-        // Outstand rejects Pinterest posts without a board_id in
-        // pinterestConfiguration; send both shapes it recognises.
-        body.pinterestConfiguration = {
+        // Per Outstand docs: platform config is a TOP-LEVEL key named after the
+        // network — NOT nested inside `pinterestConfiguration` or
+        // `networkOverrideConfiguration`. Wrappers get ignored → board_id
+        // missing → Pinterest rejects with "board_id required".
+        body.pinterest = {
           board_id: boardIds[0],
           ...(title ? { title } : {}),
           ...(link ? { link } : {}),
         };
-        body.networkOverrideConfiguration = {
-          pinterest: {
-            board_id: boardIds[0],
-            ...(title ? { title } : {}),
-            ...(link ? { link } : {}),
-          },
-        };
-        if (link) body.link = link;
-        if (title) body.title = title;
       }
+
 
       let postId = "";
       try {
