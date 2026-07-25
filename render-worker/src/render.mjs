@@ -201,7 +201,7 @@ export async function renderJob(job) {
       codec: "h264",
       crf: Number(process.env.RENDER_CRF ?? 28),
       concurrency: Number(process.env.RENDER_CONCURRENCY ?? 2),
-      muted: true,
+      muted: false,
       outputLocation: outPath,
       inputProps: job.props,
     });

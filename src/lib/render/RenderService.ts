@@ -56,6 +56,14 @@ export type RenderProps = {
   brand: BrandTokens;
   handle?: string | null;
   product?: Record<string, unknown>;
+  music?: {
+    id: string;
+    title: string;
+    artist: string;
+    url: string;
+    volume?: number;
+    startFrom?: number;
+  };
   seed?: number;
   variant?: "stagger" | "cascade" | "bounce" | "mask" | "shuffle" | "swing";
   stylePlan?: TypographyStylePlan;

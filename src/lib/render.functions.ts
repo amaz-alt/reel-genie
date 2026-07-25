@@ -25,6 +25,7 @@ import {
   type RenderProps,
   type TypographyStylePlan,
 } from "./render/RenderService";
+import { pickTrack } from "./music-library";
 import { TEMPLATES } from "./templates";
 
 const DEFAULT_COLORS = {
@@ -704,6 +705,7 @@ export const renderNow = createServerFn({ method: "POST" })
 
     const seed = Math.floor(Math.random() * 1e9);
     const variant = MOTION_VARIANTS[Math.floor(Math.random() * MOTION_VARIANTS.length)];
+    const music = pickTrack("trendy", seed);
     const { data: refs } = await supabase
       .from("brand_references")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -747,6 +749,14 @@ export const renderNow = createServerFn({ method: "POST" })
       variant,
       stylePlan,
       qualityPlan,
+      music: {
+        id: music.id,
+        title: music.title,
+        artist: music.artist,
+        url: music.url,
+        volume: 0.17,
+        startFrom: seed % 900,
+      },
       handle: brand.name ? `@${brand.name}` : null,
       brand: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -1,4 +1,4 @@
-import { AbsoluteFill, Easing, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Audio, Easing, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { scriptFromHook, useGoogleFont, type Beat, type ReelProps } from "../brand";
 
 /**
@@ -170,7 +170,7 @@ const BackgroundLayer: React.FC<{
   );
 };
 
-export const BoldEditorial: React.FC<ReelProps> = ({ hook, script, brand, handle: handleProp }) => {
+export const BoldEditorial: React.FC<ReelProps> = ({ hook, script, brand, handle: handleProp, music }) => {
   const { durationInFrames } = useVideoConfig();
   useGoogleFont(brand.fonts.display || "Poppins");
 
@@ -198,6 +198,7 @@ export const BoldEditorial: React.FC<ReelProps> = ({ hook, script, brand, handle
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgLight, fontFamily }}>
+      {music?.url ? <Audio src={music.url} volume={music.volume ?? 0.16} startFrom={music.startFrom ?? 0} /> : null}
       <BackgroundLayer spans={spans} colors={bgColors} fallback={bgLight} />
       {beats.map((beat, i) => {
         const fg = fgColors[i];

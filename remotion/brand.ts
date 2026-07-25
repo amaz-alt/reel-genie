@@ -30,6 +30,14 @@ export type ReelProps = {
   caption?: string;
   brand: BrandTokens;
   handle?: string | null;
+  music?: {
+    id: string;
+    title: string;
+    artist: string;
+    url: string;
+    volume?: number;
+    startFrom?: number;
+  };
   product?: Record<string, unknown>;
   seed?: number;
   /** Legacy fields — kept so older jobs still render. */
