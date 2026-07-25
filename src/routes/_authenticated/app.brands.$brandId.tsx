@@ -57,6 +57,22 @@ const referencesQuery = (id: string) =>
   });
 
 export const Route = createFileRoute("/_authenticated/app/brands/$brandId")({
+  head: () => ({
+    meta: [
+      { title: "Reelforge Brand Workspace" },
+      {
+        name: "description",
+        content: "Edit a Reelforge brand, render short-form reels, manage reference videos, and publish to selected social accounts.",
+      },
+      { property: "og:title", content: "Reelforge Brand Workspace" },
+      {
+        property: "og:description",
+        content: "Edit a Reelforge brand, render short-form reels, manage reference videos, and publish to selected social accounts.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(brandQuery(params.brandId)),
   component: BrandDetail,

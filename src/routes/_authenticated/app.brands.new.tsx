@@ -15,6 +15,22 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/app/brands/new")({
+  head: () => ({
+    meta: [
+      { title: "Create Brand in Reelforge" },
+      {
+        name: "description",
+        content: "Create a Reelforge brand with product data, voice notes, colours, fonts, and a reference reel for automated video generation.",
+      },
+      { property: "og:title", content: "Create Brand in Reelforge" },
+      {
+        property: "og:description",
+        content: "Create a Reelforge brand with product data, voice notes, colours, fonts, and a reference reel for automated video generation.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: NewBrand,
 });
 

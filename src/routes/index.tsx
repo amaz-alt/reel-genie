@@ -2,6 +2,22 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Sparkles, CalendarClock, Wand2, Share2 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Reelforge Automated Reel Generator" },
+      {
+        name: "description",
+        content: "Create on-brand short-form reels from product sheets, render MP4s, and publish them through connected social accounts.",
+      },
+      { property: "og:title", content: "Reelforge Automated Reel Generator" },
+      {
+        property: "og:description",
+        content: "Create on-brand short-form reels from product sheets, render MP4s, and publish them through connected social accounts.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: Landing,
 });
 
