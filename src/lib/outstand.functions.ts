@@ -187,6 +187,17 @@ type OutstandAccountResult = {
   publishedAt?: string | null;
 };
 
+type StoredOutstandPost = { network: string; post_id: string; account_ids: string[] };
+
+type PublishNetworkResult = {
+  network: string;
+  ok: boolean;
+  pending?: boolean;
+  postId?: string;
+  error?: string;
+  accounts?: OutstandAccountResult[];
+};
+
 async function fetchOutstandPost(apiKey: string, postId: string) {
   const res = await fetch(`${OUTSTAND_API_BASE}/v1/posts/${postId}`, {
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -211,6 +222,89 @@ async function pollOutstandOutcome(
   return last;
 }
 
+function classifyOutcome(input: {
+  network: string;
+  postId: string;
+  accountIds: string[];
+  outcome: OutstandAccountResult[];
+  storePostId: (post: StoredOutstandPost) => void;
+}): PublishNetworkResult {
+  const { network, postId, accountIds, outcome, storePostId } = input;
+  const failed = outcome.filter((a) => a.status === "failed");
+  const pending = outcome.filter((a) => !a.status || a.status === "pending");
+  const published = outcome.filter((a) => a.status === "published");
+
+  if (failed.length === 0 && pending.length === 0 && published.length > 0) {
+    storePostId({ network, post_id: postId, account_ids: accountIds });
+    return { network, ok: true, postId, accounts: outcome };
+  }
+
+  if (published.length > 0 && failed.length > 0) {
+    storePostId({ network, post_id: postId, account_ids: accountIds });
+    return {
+      network,
+      ok: false,
+      postId,
+      error: `Partial fail: ${failed.map((a) => `${a.username ?? a.id}: ${a.error}`).join(" | ")}`,
+      accounts: outcome,
+    };
+  }
+
+  if (failed.length > 0 && pending.length === 0) {
+    return {
+      network,
+      ok: false,
+      postId,
+      error: failed.map((a) => `${a.username ?? a.id}: ${a.error}`).join(" | "),
+      accounts: outcome,
+    };
+  }
+
+  storePostId({ network, post_id: postId, account_ids: accountIds });
+  return {
+    network,
+    ok: false,
+    pending: true,
+    postId,
+    error: `Outstand accepted the video and is still processing it. Check again in a few minutes.`,
+    accounts: outcome,
+  };
+}
+
+async function checkStoredOutstandPosts(apiKey: string, posts: StoredOutstandPost[]): Promise<PublishNetworkResult[]> {
+  const stored = new Map<string, StoredOutstandPost>();
+  const results: PublishNetworkResult[] = [];
+  const storePostId = (post: StoredOutstandPost) => stored.set(`${post.network}:${post.post_id}`, post);
+
+  for (const post of posts) {
+    let outcome: OutstandAccountResult[] = [];
+    try {
+      outcome = await pollOutstandOutcome(apiKey, post.post_id, { tries: 6, intervalMs: 10000 });
+      results.push(
+        classifyOutcome({
+          network: post.network,
+          postId: post.post_id,
+          accountIds: post.account_ids,
+          outcome,
+          storePostId,
+        }),
+      );
+    } catch (e) {
+      storePostId(post);
+      results.push({
+        network: post.network,
+        ok: false,
+        pending: true,
+        postId: post.post_id,
+        error: e instanceof Error ? e.message : String(e),
+        accounts: outcome,
+      });
+    }
+  }
+
+  return results;
+}
+
 export const publishReel = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ reel_id: z.string().uuid() }).parse(data))
@@ -221,7 +315,7 @@ export const publishReel = createServerFn({ method: "POST" })
     const { data: reel, error: reelErr } = await context.supabase
       .from("reels")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .select("id, brand_id, hook, caption, hashtags, video_url, status, product_snapshot" as any)
+      .select("id, brand_id, hook, caption, hashtags, video_url, status, product_snapshot, outstand_post_ids" as any)
       .eq("id", data.reel_id)
       .maybeSingle();
     if (reelErr) throw new Error(reelErr.message);
@@ -235,8 +329,35 @@ export const publishReel = createServerFn({ method: "POST" })
       video_url: string | null;
       status: string;
       product_snapshot: Record<string, unknown> | null;
+      outstand_post_ids: StoredOutstandPost[] | null;
     };
     if (!r.video_url) throw new Error("Reel has no rendered video yet");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const existingPosts = Array.isArray(r.outstand_post_ids) ? r.outstand_post_ids : [];
+    if (r.status === "publishing" && existingPosts.length > 0) {
+      const refreshResults = await checkStoredOutstandPosts(apiKey, existingPosts);
+      const anyOk = refreshResults.some((x) => x.ok);
+      const anyPending = refreshResults.some((x) => x.pending);
+      const allOk = refreshResults.length > 0 && refreshResults.every((x) => x.ok);
+      const now = new Date().toISOString();
+      await supabaseAdmin
+        .from("reels")
+        .update({
+          status: allOk ? "published" : anyPending ? "publishing" : "failed",
+          published_at: allOk ? now : null,
+          outstand_post_ids: existingPosts,
+          error: allOk || anyPending
+            ? null
+            : refreshResults
+                .filter((x) => !x.ok)
+                .map((x) => `${x.network}: ${x.error}`)
+                .join(" | "),
+        })
+        .eq("id", r.id);
+      return { ok: anyOk, allOk, pending: anyPending, results: refreshResults };
+    }
 
     const { data: accountsRaw, error: accErr } = await context.supabase
       .from("brand_social_accounts")
@@ -253,7 +374,6 @@ export const publishReel = createServerFn({ method: "POST" })
       throw new Error("No social accounts linked to this brand. Connect accounts first.");
     }
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.from("reels").update({ status: "publishing", error: null }).eq("id", r.id);
 
     const filename = `${r.id}.mp4`;
@@ -320,14 +440,9 @@ export const publishReel = createServerFn({ method: "POST" })
       byNetwork.set(a.network, list);
     }
 
-    const results: Array<{
-      network: string;
-      ok: boolean;
-      postId?: string;
-      error?: string;
-      accounts?: OutstandAccountResult[];
-    }> = [];
-    const postIds: Array<{ network: string; post_id: string; account_ids: string[] }> = [];
+    const results: PublishNetworkResult[] = [];
+    const postIdsByKey = new Map<string, StoredOutstandPost>();
+    const storePostId = (post: StoredOutstandPost) => postIdsByKey.set(`${post.network}:${post.post_id}`, post);
 
     for (const [network, accs] of byNetwork.entries()) {
       const accountIds = accs.map((a) => a.outstand_account_id);
@@ -400,68 +515,42 @@ export const publishReel = createServerFn({ method: "POST" })
         results.push({ network, ok: false, error: "Outstand did not return a post id" });
         continue;
       }
+      storePostId({ network, post_id: postId, account_ids: accountIds });
+      await supabaseAdmin
+        .from("reels")
+        .update({ outstand_post_ids: Array.from(postIdsByKey.values()), status: "publishing" })
+        .eq("id", r.id);
 
       // Poll per-account outcome. Outstand fans out asynchronously — a 2xx
       // response only means "queued", not "delivered". Ground truth lives on
       // socialAccounts[].status.
       let outcome: OutstandAccountResult[] = [];
       try {
-        outcome = await pollOutstandOutcome(apiKey, postId, { tries: 8, intervalMs: 5000 });
+        outcome = await pollOutstandOutcome(apiKey, postId, { tries: 12, intervalMs: 10000 });
       } catch (e) {
         results.push({
           network,
           ok: false,
+          pending: true,
           postId,
           error: e instanceof Error ? e.message : String(e),
         });
         continue;
       }
-
-      const failed = outcome.filter((a) => a.status === "failed");
-      const pending = outcome.filter((a) => !a.status || a.status === "pending");
-      const published = outcome.filter((a) => a.status === "published");
-
-      if (failed.length === 0 && pending.length === 0 && published.length > 0) {
-        results.push({ network, ok: true, postId, accounts: outcome });
-        postIds.push({ network, post_id: postId, account_ids: accountIds });
-      } else if (published.length > 0 && failed.length > 0) {
-        results.push({
-          network,
-          ok: false,
-          postId,
-          error: `Partial fail: ${failed.map((a) => `${a.username ?? a.id}: ${a.error}`).join(" | ")}`,
-          accounts: outcome,
-        });
-        postIds.push({ network, post_id: postId, account_ids: accountIds });
-      } else if (failed.length > 0) {
-        results.push({
-          network,
-          ok: false,
-          postId,
-          error: failed.map((a) => `${a.username ?? a.id}: ${a.error}`).join(" | "),
-          accounts: outcome,
-        });
-      } else {
-        results.push({
-          network,
-          ok: false,
-          postId,
-          error: `Still pending after poll window. Check Outstand for post ${postId}.`,
-          accounts: outcome,
-        });
-      }
+      results.push(classifyOutcome({ network, postId, accountIds, outcome, storePostId }));
     }
 
     const anyOk = results.some((x) => x.ok);
-    const allOk = results.every((x) => x.ok);
+    const anyPending = results.some((x) => x.pending);
+    const allOk = results.length > 0 && results.every((x) => x.ok);
     const now = new Date().toISOString();
     await supabaseAdmin
       .from("reels")
       .update({
-        status: allOk ? "published" : "failed",
+        status: allOk ? "published" : anyPending ? "publishing" : "failed",
         published_at: allOk ? now : null,
-        outstand_post_ids: postIds,
-        error: allOk
+        outstand_post_ids: Array.from(postIdsByKey.values()),
+        error: allOk || anyPending
           ? null
           : results
               .filter((x) => !x.ok)
@@ -470,5 +559,5 @@ export const publishReel = createServerFn({ method: "POST" })
       })
       .eq("id", r.id);
 
-    return { ok: anyOk, allOk, results };
+    return { ok: anyOk, allOk, pending: anyPending, results };
   });
