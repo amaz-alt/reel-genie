@@ -178,8 +178,10 @@ function BrandDetail() {
     mutationFn: (reelId: string) => publishReel({ data: { reel_id: reelId } }),
     onSuccess: (r) => {
       const okList = r.results.filter((x) => x.ok).map((x) => x.network);
+      const pendingList = r.results.filter((x) => x.pending).map((x) => x.network);
       const failList = r.results.filter((x) => !x.ok);
       if (r.allOk) toast.success(`Published to ${okList.join(", ")}`);
+      else if (r.pending) toast.info(`Submitted to Outstand. Still processing: ${pendingList.join(", ")}. Check again in a few minutes.`);
       else if (r.ok) toast.warning(`Published to ${okList.join(", ")}. Failed: ${failList.map((f) => f.network).join(", ")}`);
       else toast.error(`Publish failed: ${failList.map((f) => `${f.network}: ${f.error}`).join(" | ")}`);
       qc.invalidateQueries({ queryKey: ["brand", brandId] });
@@ -554,7 +556,6 @@ function BrandDetail() {
                               size="sm"
                               disabled={
                                 publish.isPending ||
-                                r.status === "publishing" ||
                                 r.status === "published"
                               }
                               onClick={() => publish.mutate(r.id)}
@@ -565,7 +566,7 @@ function BrandDetail() {
                               {r.status === "published"
                                 ? "Published"
                                 : r.status === "publishing"
-                                  ? "Publishing…"
+                                  ? "Check publish status"
                                   : "Publish in one go"}
                             </Button>
                             <div className="flex gap-3 text-xs">
