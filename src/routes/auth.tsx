@@ -10,6 +10,22 @@ import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
+  head: () => ({
+    meta: [
+      { title: "Sign in to Reelforge" },
+      {
+        name: "description",
+        content: "Sign in to manage brand reels, schedules, reference vaults, and connected publishing accounts in Reelforge.",
+      },
+      { property: "og:title", content: "Sign in to Reelforge" },
+      {
+        property: "og:description",
+        content: "Sign in to manage brand reels, schedules, reference vaults, and connected publishing accounts in Reelforge.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: AuthPage,
 });
 

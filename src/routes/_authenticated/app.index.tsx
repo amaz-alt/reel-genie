@@ -18,6 +18,22 @@ const brandsQuery = queryOptions({
 });
 
 export const Route = createFileRoute("/_authenticated/app/")({
+  head: () => ({
+    meta: [
+      { title: "Reelforge Brand Dashboard" },
+      {
+        name: "description",
+        content: "Manage each brand's product sheet, reel schedule, visual system, and publishing setup in Reelforge.",
+      },
+      { property: "og:title", content: "Reelforge Brand Dashboard" },
+      {
+        property: "og:description",
+        content: "Manage each brand's product sheet, reel schedule, visual system, and publishing setup in Reelforge.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   loader: ({ context }) => context.queryClient.ensureQueryData(brandsQuery),
   component: Dashboard,
 });

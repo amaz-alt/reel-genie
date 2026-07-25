@@ -24,6 +24,7 @@ const defaultProps: ReelProps = {
   script: demoScript,
   brand: DEFAULT_BRAND,
   handle: "@yp.motionstudio",
+  music: undefined,
 };
 
 const base = { width: 1080, height: 1920, fps: 30, durationInFrames: 600 } as const;
