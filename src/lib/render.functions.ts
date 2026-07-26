@@ -285,7 +285,9 @@ async function generateCopy(input: {
       { layout: "single", lines: [{ text: "changed", size: "hero" }] },
       { layout: "single", lines: [{ text: "everything.", size: "hero" }] },
     ],
+    pace: "reflective",
   };
+
   if (!key) return fallback;
 
   const voice = input.voice ?? (Math.random() < 0.5 ? "you" : "i-we");
