@@ -400,14 +400,16 @@ async function generateCopy(input: {
 }
 
 /**
- * Duration is derived from the beat weights so every beat gets room to breathe.
- * Clamped 20–25s for complete story-style hooks.
+ * Duration follows the summed hold weights, so a punchy reel is genuinely
+ * shorter than a reflective one instead of every reel being stretched to a
+ * fixed length (which is what flattened the slide speed before).
  */
 export function computeDurationSeconds(script: ScriptBeat[]): number {
-  const totalHold = script.reduce((sum, b) => sum + Math.max(0.6, b.hold ?? 1), 0);
-  const seconds = Math.round(totalHold * 1.55);
-  return Math.max(20, Math.min(25, seconds));
+  const totalHold = script.reduce((sum, b) => sum + Math.max(0.45, b.hold ?? 1), 0);
+  const seconds = Math.round(totalHold * 1.7);
+  return Math.max(15, Math.min(28, seconds));
 }
+
 
 function buildReferenceQualityPlan(input: {
   templateId: LockedTemplateId;
