@@ -334,26 +334,47 @@ function BrandDetail() {
               <CardTitle className="font-display text-lg">Brand colours & fonts</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                {(["primary", "accent", "background", "text"] as const).map((k) => (
-                  <div key={k}>
-                    <Label className="text-xs capitalize">{k}</Label>
+              <p className="text-xs text-muted-foreground">
+                Two colours only. Slides swap which one is the background and which one is the text, like the
+                references.
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {(
+                  [
+                    { key: "primary" as const, label: "Ink colour", mirror: "text" as const },
+                    { key: "accent" as const, label: "Field colour", mirror: "background" as const },
+                  ]
+                ).map(({ key, label, mirror }) => (
+                  <div key={key}>
+                    <Label className="text-xs">{label}</Label>
                     <div className="mt-1 flex items-center gap-2">
                       <input
                         type="color"
-                        value={colors[k]}
-                        onChange={(e) => setColors({ ...colors, [k]: e.target.value })}
+                        value={colors[key]}
+                        onChange={(e) => setColors({ ...colors, [key]: e.target.value, [mirror]: e.target.value })}
                         className="h-9 w-12 cursor-pointer rounded border border-border bg-transparent"
                       />
                       <Input
-                        value={colors[k]}
-                        onChange={(e) => setColors({ ...colors, [k]: e.target.value })}
+                        value={colors[key]}
+                        onChange={(e) => setColors({ ...colors, [key]: e.target.value, [mirror]: e.target.value })}
                         className="font-mono text-xs"
                       />
                     </div>
                   </div>
                 ))}
               </div>
+              <div
+                className="flex items-stretch overflow-hidden rounded-md border border-border text-center text-xs font-semibold"
+                aria-hidden
+              >
+                <div className="flex-1 px-3 py-4" style={{ background: colors.accent, color: colors.primary }}>
+                  slide A
+                </div>
+                <div className="flex-1 px-3 py-4" style={{ background: colors.primary, color: colors.accent }}>
+                  slide B
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <Label className="text-xs">Display font</Label>
