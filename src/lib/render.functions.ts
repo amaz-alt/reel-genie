@@ -56,12 +56,85 @@ type ScriptBeat = {
   hold?: number;
 };
 
+/** Overall rhythm of the reel — drives how fast slides move. */
+type ReelPace = "upbeat" | "punchy" | "tense" | "reflective";
+
 type CopyResult = {
   hook: string;
   caption: string;
   hashtags: string[];
   script: ScriptBeat[];
+  pace: ReelPace;
 };
+
+/**
+ * Slide-speed engine.
+ *
+ * References never hold each slide for the same time: short connective beats
+ * flick past, meaty/punchline beats sit. We derive a hold weight per beat from
+ * (a) the AI's own emphasis weight, (b) how much text is on screen,
+ * (c) sentence position/punctuation, and (d) the reel's overall pace.
+ */
+function applyPacing(script: ScriptBeat[], pace: ReelPace): ScriptBeat[] {
+  const paceMul: Record<ReelPace, number> = {
+    upbeat: 0.82,
+    punchy: 0.74,
+    tense: 1.0,
+    reflective: 1.18,
+  }[pace] !== undefined
+    ? { upbeat: 0.82, punchy: 0.74, tense: 1.0, reflective: 1.18 }
+    : { upbeat: 0.82, punchy: 0.74, tense: 1.0, reflective: 1.18 };
+
+  const last = script.length - 1;
+  const out = script.map((beat, i) => {
+    const text = beat.lines.map((l) => l.text).join(" ");
+    const words = text.split(/\s+/).filter(Boolean).length;
+    const chars = text.replace(/\s+/g, "").length;
+
+    // Readability floor: more glyphs on screen need more time.
+    let w = 0.5 + words * 0.17 + chars * 0.012;
+
+    // Blend with the copywriter's emphasis intent.
+    const ai = typeof beat.hold === "number" && beat.hold > 0 ? Math.min(2, Math.max(0.5, beat.hold)) : 1;
+    w = w * 0.55 + ai * 0.45;
+
+    // Stack beats carry hierarchy — they read slower than a single word.
+    if (beat.layout === "stack") w *= 1.08;
+
+    // Setup connective beats ("the", "but if", "over the") flick past.
+    if (words <= 2 && chars <= 9) w *= 0.78;
+
+    // Punctuation = a breath. Final beat lands.
+    if (/[.!?]$/.test(text.trim())) w *= 1.18;
+    if (i === last) w *= 1.3;
+    if (i === 0) w *= 0.92;
+
+    // Tense reels breathe unevenly: alternate pressure/release.
+    if (pace === "tense") w *= i % 2 === 0 ? 0.86 : 1.12;
+
+    return { ...beat, hold: Math.round(Math.min(2.2, Math.max(0.45, w * paceMul[pace])) * 100) / 100 };
+  });
+
+  // Never let two adjacent slides sit at the same speed — that's what reads
+  // as "fixed timing" in the current version.
+  for (let i = 1; i < out.length; i++) {
+    const prev = out[i - 1].hold ?? 1;
+    const cur = out[i].hold ?? 1;
+    if (Math.abs(cur - prev) < 0.08) {
+      out[i] = { ...out[i], hold: Math.round(Math.max(0.45, cur * (i % 2 ? 0.88 : 1.12)) * 100) / 100 };
+    }
+  }
+  return out;
+}
+
+function derivePace(text: string): ReelPace {
+  const t = text.toLowerCase();
+  if (/[?]|nobody|stop|wrong|lie|truth|actually|hate|myth|scam|worst/.test(t)) return "tense";
+  if (/now|today|fast|go|start|win|build|ship|move|hustle|energy|let's/.test(t)) return "punchy";
+  if (/remember|slowly|years|quiet|realis|realiz|learned|finally|patience/.test(t)) return "reflective";
+  return "upbeat";
+}
+
 
 type LockedTemplateId = "motion-poster" | "bold-editorial";
 
