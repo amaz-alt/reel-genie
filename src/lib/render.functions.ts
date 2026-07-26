@@ -763,13 +763,15 @@ export const renderNow = createServerFn({ method: "POST" })
     const voice: "you" | "i-we" = lastHook ? (lastWasYou ? "i-we" : "you") : Math.random() < 0.5 ? "you" : "i-we";
 
     // Auto-generate copy unless caller passed one in.
-    const copy = data.hook
+    const copy: CopyResult = data.hook
       ? {
           hook: data.hook,
           caption: data.caption ?? "",
           hashtags: [] as string[],
           script: [] as ScriptBeat[],
+          pace: derivePace(data.hook),
         }
+
       : await generateCopy({
           brandName: brand.name,
           knowledgeBase: brand.knowledge_base,
