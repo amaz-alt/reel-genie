@@ -30,10 +30,23 @@ import { TEMPLATES } from "./templates";
 
 const DEFAULT_COLORS = {
   primary: "#111111",
-  accent: "#ff3b30",
-  background: "#f5f1ea",
+  accent: "#F5E63B",
+  background: "#F5E63B",
   text: "#111111",
 };
+
+/**
+ * Two-colour palette. The references only ever use ONE pair — an ink colour
+ * and a field colour — and swap which one is the background per beat. We
+ * collapse whatever is stored on the brand into exactly that pair so no third
+ * or fourth colour can ever enter the render.
+ */
+function twoColorPalette(stored: { primary?: string; accent?: string; background?: string; text?: string } | null) {
+  const ink = stored?.primary || DEFAULT_COLORS.primary;
+  const field = stored?.accent || stored?.background || DEFAULT_COLORS.accent;
+  return { primary: ink, accent: field, background: field, text: ink };
+}
+
 const DEFAULT_FONTS = { display: "Space Grotesk", body: "Inter" };
 const MAX_ATTEMPTS = 3;
 
@@ -56,12 +69,84 @@ type ScriptBeat = {
   hold?: number;
 };
 
+/** Overall rhythm of the reel — drives how fast slides move. */
+type ReelPace = "upbeat" | "punchy" | "tense" | "reflective";
+
 type CopyResult = {
   hook: string;
   caption: string;
   hashtags: string[];
   script: ScriptBeat[];
+  pace: ReelPace;
 };
+
+/**
+ * Slide-speed engine.
+ *
+ * References never hold each slide for the same time: short connective beats
+ * flick past, meaty/punchline beats sit. We derive a hold weight per beat from
+ * (a) the AI's own emphasis weight, (b) how much text is on screen,
+ * (c) sentence position/punctuation, and (d) the reel's overall pace.
+ */
+function applyPacing(script: ScriptBeat[], pace: ReelPace): ScriptBeat[] {
+  const paceMul: Record<ReelPace, number> = {
+    upbeat: 0.82,
+    punchy: 0.74,
+    tense: 1.0,
+    reflective: 1.18,
+  };
+
+
+  const last = script.length - 1;
+  const out = script.map((beat, i) => {
+    const text = beat.lines.map((l) => l.text).join(" ");
+    const words = text.split(/\s+/).filter(Boolean).length;
+    const chars = text.replace(/\s+/g, "").length;
+
+    // Readability floor: more glyphs on screen need more time.
+    let w = 0.5 + words * 0.17 + chars * 0.012;
+
+    // Blend with the copywriter's emphasis intent.
+    const ai = typeof beat.hold === "number" && beat.hold > 0 ? Math.min(2, Math.max(0.5, beat.hold)) : 1;
+    w = w * 0.55 + ai * 0.45;
+
+    // Stack beats carry hierarchy — they read slower than a single word.
+    if (beat.layout === "stack") w *= 1.08;
+
+    // Setup connective beats ("the", "but if", "over the") flick past.
+    if (words <= 2 && chars <= 9) w *= 0.78;
+
+    // Punctuation = a breath. Final beat lands.
+    if (/[.!?]$/.test(text.trim())) w *= 1.18;
+    if (i === last) w *= 1.3;
+    if (i === 0) w *= 0.92;
+
+    // Tense reels breathe unevenly: alternate pressure/release.
+    if (pace === "tense") w *= i % 2 === 0 ? 0.86 : 1.12;
+
+    return { ...beat, hold: Math.round(Math.min(2.2, Math.max(0.45, w * paceMul[pace])) * 100) / 100 };
+  });
+
+  // Never let two adjacent slides sit at the same speed — that's what reads
+  // as "fixed timing" in the current version.
+  for (let i = 1; i < out.length; i++) {
+    const prev = out[i - 1].hold ?? 1;
+    const cur = out[i].hold ?? 1;
+    if (Math.abs(cur - prev) < 0.08) {
+      out[i] = { ...out[i], hold: Math.round(Math.max(0.45, cur * (i % 2 ? 0.88 : 1.12)) * 100) / 100 };
+    }
+  }
+  return out;
+}
+
+function derivePace(text: string): ReelPace {
+  const t = text.toLowerCase();
+  if (/[?]|nobody|stop|wrong|lie|truth|actually|hate|myth|scam|worst/.test(t)) return "tense";
+  if (/now|today|fast|go|start|win|build|ship|move|hustle|energy|let's/.test(t)) return "punchy";
+  if (/remember|slowly|years|quiet|realis|realiz|learned|finally|patience/.test(t)) return "reflective";
+  return "upbeat";
+}
+
 
 type LockedTemplateId = "motion-poster" | "bold-editorial";
 
@@ -213,7 +298,9 @@ async function generateCopy(input: {
       { layout: "single", lines: [{ text: "changed", size: "hero" }] },
       { layout: "single", lines: [{ text: "everything.", size: "hero" }] },
     ],
+    pace: "reflective",
   };
+
   if (!key) return fallback;
 
   const voice = input.voice ?? (Math.random() < 0.5 ? "you" : "i-we");
@@ -241,14 +328,23 @@ async function generateCopy(input: {
     "    - \"single\": one line, centered, hero-sized. Use for a punchy word or short phrase.",
     "    - \"stack\": 2–3 lines with SIZE CONTRAST. Small connective words (\"the\", \"of\", \"but if\", \"over\", \"is\") get size:\"small\"; the meaty noun/verb gets size:\"hero\".",
     "• Aim for a rhythm: mix single beats with stack beats. Do NOT make every beat a stack; do NOT make every beat a single.",
-    "• `hold` is a relative weight (0.7 = quick beat, 1.0 = normal, 1.5 = lingering emphasis). Give punchline beats more hold.",
+    "",
+    "PACING RULES (this decides how fast each slide moves — the most important rhythm decision):",
+    "• `pace` = the reel's overall tempo, chosen from the MEANING of the copy:",
+    "    - \"punchy\": action / urgency / hype → slides move quick.",
+    "    - \"upbeat\": motivational, forward-moving → brisk but readable.",
+    "    - \"tense\": controversy, myth-busting, callout → uneven rhythm, pressure then release.",
+    "    - \"reflective\": confession, realisation, emotional → slides linger.",
+    "• `hold` is per-beat relative speed: 0.5 = flick past, 1.0 = normal, 1.8 = lands and sits.",
+    "• Vary `hold` beat to beat — NEVER give every beat the same number. Short connective beats get 0.5-0.7; the punchline and the final beat get 1.4-1.8.",
     "• Preserve punctuation on the final beat (period, question mark).",
     "",
     "OUTPUT — STRICT JSON only, no prose, no markdown fences. Schema:",
-    '{"hook": string, "caption": string, "hashtags": string[], "script": [{ "layout": "single"|"stack", "lines": [{"text": string, "size": "small"|"hero"}], "hold": number }]}',
+    '{"hook": string, "caption": string, "hashtags": string[], "pace": "punchy"|"upbeat"|"tense"|"reflective", "script": [{ "layout": "single"|"stack", "lines": [{"text": string, "size": "small"|"hero"}], "hold": number }]}',
     "",
     "`hook` = the full sentence joined (for the reels table + social caption). `script` = the on-screen beats.",
   ].join("\n");
+
 
   const user = [
     `Brand: ${input.brandName}`,
@@ -297,26 +393,36 @@ async function generateCopy(input: {
       })
       .filter((b: ScriptBeat) => b.lines.length > 0);
     if (cleanBeats.length < 3) return fallback;
+    const hookText =
+      String(parsed.hook ?? "").slice(0, 500) || cleanBeats.map((b) => b.lines.map((l) => l.text).join(" ")).join(" ");
+    const rawPace = String(parsed.pace ?? "");
+    const pace: ReelPace = (["punchy", "upbeat", "tense", "reflective"] as const).includes(rawPace as ReelPace)
+      ? (rawPace as ReelPace)
+      : derivePace(hookText);
     return {
-      hook: String(parsed.hook ?? "").slice(0, 500) || cleanBeats.map((b) => b.lines.map((l) => l.text).join(" ")).join(" "),
+      hook: hookText,
       caption: String(parsed.caption ?? "").slice(0, 1000),
       hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags.map((t: unknown) => String(t)).slice(0, 12) : [],
       script: cleanBeats,
+      pace,
     };
+
   } catch {
     return fallback;
   }
 }
 
 /**
- * Duration is derived from the beat weights so every beat gets room to breathe.
- * Clamped 20–25s for complete story-style hooks.
+ * Duration follows the summed hold weights, so a punchy reel is genuinely
+ * shorter than a reflective one instead of every reel being stretched to a
+ * fixed length (which is what flattened the slide speed before).
  */
 export function computeDurationSeconds(script: ScriptBeat[]): number {
-  const totalHold = script.reduce((sum, b) => sum + Math.max(0.6, b.hold ?? 1), 0);
-  const seconds = Math.round(totalHold * 1.55);
-  return Math.max(20, Math.min(25, seconds));
+  const totalHold = script.reduce((sum, b) => sum + Math.max(0.45, b.hold ?? 1), 0);
+  const seconds = Math.round(totalHold * 1.7);
+  return Math.max(15, Math.min(28, seconds));
 }
+
 
 function buildReferenceQualityPlan(input: {
   templateId: LockedTemplateId;
@@ -670,13 +776,15 @@ export const renderNow = createServerFn({ method: "POST" })
     const voice: "you" | "i-we" = lastHook ? (lastWasYou ? "i-we" : "you") : Math.random() < 0.5 ? "you" : "i-we";
 
     // Auto-generate copy unless caller passed one in.
-    const copy = data.hook
+    const copy: CopyResult = data.hook
       ? {
           hook: data.hook,
           caption: data.caption ?? "",
           hashtags: [] as string[],
           script: [] as ScriptBeat[],
+          pace: derivePace(data.hook),
         }
+
       : await generateCopy({
           brandName: brand.name,
           knowledgeBase: brand.knowledge_base,
@@ -727,10 +835,13 @@ export const renderNow = createServerFn({ method: "POST" })
     });
 
     // Script drives on-screen beats. Fallback to a heuristic split if empty.
-    const script: ScriptBeat[] =
+    const rawScript: ScriptBeat[] =
       copy.script && copy.script.length ? copy.script : deriveScriptFromHook(copy.hook);
+    // Slide-speed engine: per-beat hold derived from meaning, density and pace.
+    const script: ScriptBeat[] = applyPacing(rawScript, copy.pace ?? derivePace(copy.hook));
     const durationSeconds = computeDurationSeconds(script);
     const durationInFrames = durationSeconds * 30;
+
     const brandFonts = { ...DEFAULT_FONTS, ...((brand.brand_fonts as { display?: string; body?: string } | null) ?? {}) };
     const analyzedReferenceCount = referenceBriefs.filter((r) => r.analysis).length;
     const qualityPlan = buildReferenceQualityPlan({
@@ -760,7 +871,7 @@ export const renderNow = createServerFn({ method: "POST" })
       handle: brand.name ? `@${brand.name}` : null,
       brand: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        colors: { ...DEFAULT_COLORS, ...((brand.brand_colors as any) ?? {}) },
+        colors: twoColorPalette((brand.brand_colors as any) ?? null),
         fonts: brandFonts,
         logoUrl: brand.logo_url,
       },

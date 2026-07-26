@@ -51,7 +51,7 @@ function normalizeHandle(name?: string | null) {
 function useBeatMotion(hold: number, sequenceFrames: number) {
   const local = useCurrentFrame();
   // Entrance length: 4f snappy → 8f deliberate.
-  const entranceLen = Math.round(interpolate(hold, [0.6, 1.5], [4, 8], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }));
+  const entranceLen = Math.round(interpolate(hold, [0.5, 1.8], [4, 9], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }));
   const exitLen = 5;
   const exitStart = Math.max(entranceLen + 6, sequenceFrames - exitLen);
 
@@ -243,21 +243,23 @@ export const MotionPoster: React.FC<ReelProps> = ({ hook, script, brand, handle:
   useGoogleFont(brand.fonts.display || "Poppins");
 
   const beats: Beat[] = script && script.length ? script : scriptFromHook(hook);
-  const bgA = brand.colors.accent || "#F5E63B";
+  // TWO colours only: field ↔ ink, swapping per beat.
+  const bgA = brand.colors.accent || brand.colors.background || "#F5E63B";
   const bgB = brand.colors.primary || "#0a0a0a";
   const handle = normalizeHandle(handleProp);
 
-  // Distribute frames respecting per-beat `hold` weights. Tighter minimum so
-  // quick beats really feel quicker (35f ≈ 1.16s at 30fps).
-  const weights = beats.map((b) => Math.max(0.6, b.hold ?? 1));
+  // Distribute frames respecting per-beat `hold` weights. Low floor so quick
+  // beats truly flick past (16f ≈ 0.53s), capped so heavy beats don't stall.
+  const weights = beats.map((b) => Math.max(0.45, b.hold ?? 1));
   const totalW = weights.reduce((a, b) => a + b, 0);
   let cursor = 0;
   const spans = weights.map((w) => {
-    const frames = Math.max(28, Math.round((w / totalW) * durationInFrames));
+    const frames = Math.max(16, Math.min(80, Math.round((w / totalW) * durationInFrames)));
     const from = cursor;
     cursor += frames;
     return { from, frames };
   });
+
 
   const bgColors = beats.map((_, i) => (i % 2 === 0 ? bgA : bgB));
   const fontFamily = `'${brand.fonts.display || "Poppins"}', 'Helvetica Neue', Arial, sans-serif`;
