@@ -820,10 +820,13 @@ export const renderNow = createServerFn({ method: "POST" })
     });
 
     // Script drives on-screen beats. Fallback to a heuristic split if empty.
-    const script: ScriptBeat[] =
+    const rawScript: ScriptBeat[] =
       copy.script && copy.script.length ? copy.script : deriveScriptFromHook(copy.hook);
+    // Slide-speed engine: per-beat hold derived from meaning, density and pace.
+    const script: ScriptBeat[] = applyPacing(rawScript, copy.pace ?? derivePace(copy.hook));
     const durationSeconds = computeDurationSeconds(script);
     const durationInFrames = durationSeconds * 30;
+
     const brandFonts = { ...DEFAULT_FONTS, ...((brand.brand_fonts as { display?: string; body?: string } | null) ?? {}) };
     const analyzedReferenceCount = referenceBriefs.filter((r) => r.analysis).length;
     const qualityPlan = buildReferenceQualityPlan({
