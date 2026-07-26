@@ -33,7 +33,7 @@ function normalizeHandle(name?: string | null) {
 
 function useBeatMotion(hold: number, sequenceFrames: number) {
   const local = useCurrentFrame();
-  const entranceLen = Math.round(interpolate(hold, [0.6, 1.5], [5, 9], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }));
+  const entranceLen = Math.round(interpolate(hold, [0.5, 1.8], [4, 10], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }));
   const exitLen = 5;
   const exitStart = Math.max(entranceLen + 6, sequenceFrames - exitLen);
 
