@@ -315,14 +315,23 @@ async function generateCopy(input: {
     "    - \"single\": one line, centered, hero-sized. Use for a punchy word or short phrase.",
     "    - \"stack\": 2–3 lines with SIZE CONTRAST. Small connective words (\"the\", \"of\", \"but if\", \"over\", \"is\") get size:\"small\"; the meaty noun/verb gets size:\"hero\".",
     "• Aim for a rhythm: mix single beats with stack beats. Do NOT make every beat a stack; do NOT make every beat a single.",
-    "• `hold` is a relative weight (0.7 = quick beat, 1.0 = normal, 1.5 = lingering emphasis). Give punchline beats more hold.",
+    "",
+    "PACING RULES (this decides how fast each slide moves — the most important rhythm decision):",
+    "• `pace` = the reel's overall tempo, chosen from the MEANING of the copy:",
+    "    - \"punchy\": action / urgency / hype → slides move quick.",
+    "    - \"upbeat\": motivational, forward-moving → brisk but readable.",
+    "    - \"tense\": controversy, myth-busting, callout → uneven rhythm, pressure then release.",
+    "    - \"reflective\": confession, realisation, emotional → slides linger.",
+    "• `hold` is per-beat relative speed: 0.5 = flick past, 1.0 = normal, 1.8 = lands and sits.",
+    "• Vary `hold` beat to beat — NEVER give every beat the same number. Short connective beats get 0.5-0.7; the punchline and the final beat get 1.4-1.8.",
     "• Preserve punctuation on the final beat (period, question mark).",
     "",
     "OUTPUT — STRICT JSON only, no prose, no markdown fences. Schema:",
-    '{"hook": string, "caption": string, "hashtags": string[], "script": [{ "layout": "single"|"stack", "lines": [{"text": string, "size": "small"|"hero"}], "hold": number }]}',
+    '{"hook": string, "caption": string, "hashtags": string[], "pace": "punchy"|"upbeat"|"tense"|"reflective", "script": [{ "layout": "single"|"stack", "lines": [{"text": string, "size": "small"|"hero"}], "hold": number }]}',
     "",
     "`hook` = the full sentence joined (for the reels table + social caption). `script` = the on-screen beats.",
   ].join("\n");
+
 
   const user = [
     `Brand: ${input.brandName}`,
