@@ -380,12 +380,20 @@ async function generateCopy(input: {
       })
       .filter((b: ScriptBeat) => b.lines.length > 0);
     if (cleanBeats.length < 3) return fallback;
+    const hookText =
+      String(parsed.hook ?? "").slice(0, 500) || cleanBeats.map((b) => b.lines.map((l) => l.text).join(" ")).join(" ");
+    const rawPace = String(parsed.pace ?? "");
+    const pace: ReelPace = (["punchy", "upbeat", "tense", "reflective"] as const).includes(rawPace as ReelPace)
+      ? (rawPace as ReelPace)
+      : derivePace(hookText);
     return {
-      hook: String(parsed.hook ?? "").slice(0, 500) || cleanBeats.map((b) => b.lines.map((l) => l.text).join(" ")).join(" "),
+      hook: hookText,
       caption: String(parsed.caption ?? "").slice(0, 1000),
       hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags.map((t: unknown) => String(t)).slice(0, 12) : [],
       script: cleanBeats,
+      pace,
     };
+
   } catch {
     return fallback;
   }
