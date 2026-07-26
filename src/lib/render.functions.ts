@@ -81,9 +81,8 @@ function applyPacing(script: ScriptBeat[], pace: ReelPace): ScriptBeat[] {
     punchy: 0.74,
     tense: 1.0,
     reflective: 1.18,
-  }[pace] !== undefined
-    ? { upbeat: 0.82, punchy: 0.74, tense: 1.0, reflective: 1.18 }
-    : { upbeat: 0.82, punchy: 0.74, tense: 1.0, reflective: 1.18 };
+  };
+
 
   const last = script.length - 1;
   const out = script.map((beat, i) => {
