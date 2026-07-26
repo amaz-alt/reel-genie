@@ -30,10 +30,23 @@ import { TEMPLATES } from "./templates";
 
 const DEFAULT_COLORS = {
   primary: "#111111",
-  accent: "#ff3b30",
-  background: "#f5f1ea",
+  accent: "#F5E63B",
+  background: "#F5E63B",
   text: "#111111",
 };
+
+/**
+ * Two-colour palette. The references only ever use ONE pair — an ink colour
+ * and a field colour — and swap which one is the background per beat. We
+ * collapse whatever is stored on the brand into exactly that pair so no third
+ * or fourth colour can ever enter the render.
+ */
+function twoColorPalette(stored: { primary?: string; accent?: string; background?: string; text?: string } | null) {
+  const ink = stored?.primary || DEFAULT_COLORS.primary;
+  const field = stored?.accent || stored?.background || DEFAULT_COLORS.accent;
+  return { primary: ink, accent: field, background: field, text: ink };
+}
+
 const DEFAULT_FONTS = { display: "Space Grotesk", body: "Inter" };
 const MAX_ATTEMPTS = 3;
 
