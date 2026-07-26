@@ -858,7 +858,7 @@ export const renderNow = createServerFn({ method: "POST" })
       handle: brand.name ? `@${brand.name}` : null,
       brand: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        colors: { ...DEFAULT_COLORS, ...((brand.brand_colors as any) ?? {}) },
+        colors: twoColorPalette((brand.brand_colors as any) ?? null),
         fonts: brandFonts,
         logoUrl: brand.logo_url,
       },
