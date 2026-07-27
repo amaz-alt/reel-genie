@@ -83,6 +83,58 @@ export function useGoogleFont(family: string, weights: number[] = [400, 700, 800
   }, []);
 }
 
+/**
+ * Turn per-beat hold weights into frame spans that EXACTLY fill the timeline.
+ *
+ * The old version clamped each span independently, so whenever a heavy beat hit
+ * the ceiling the leftover frames were simply lost — the reel ended on a blank
+ * coloured card with no text ("half built" slides). Here we clamp first, then
+ * redistribute the remainder across the beats that still have headroom so
+ * `sum(frames) === durationInFrames` always holds.
+ */
+export function computeSpans(
+  weights: number[],
+  durationInFrames: number,
+  min = 13,
+  max = 96,
+): Array<{ from: number; frames: number }> {
+  const n = weights.length;
+  if (!n) return [];
+  const safe = weights.map((w) => (Number.isFinite(w) && w > 0 ? w : 1));
+  const total = safe.reduce((a, b) => a + b, 0) || 1;
+  const hardMin = Math.max(6, Math.min(min, Math.floor(durationInFrames / n)));
+  const frames = safe.map((w) =>
+    Math.max(hardMin, Math.min(max, Math.round((w / total) * durationInFrames))),
+  );
+
+  let diff = durationInFrames - frames.reduce((a, b) => a + b, 0);
+  let guard = 0;
+  while (diff !== 0 && guard++ < 2000) {
+    const step = diff > 0 ? 1 : -1;
+    // Heaviest beats absorb extra time first; lightest give it back first.
+    const order = frames
+      .map((_, i) => i)
+      .sort((a, b) => (step > 0 ? safe[b] - safe[a] : safe[a] - safe[b]));
+    let moved = false;
+    for (const i of order) {
+      if (diff === 0) break;
+      const next = frames[i] + step;
+      if (next < hardMin) continue;
+      frames[i] = next;
+      diff -= step;
+      moved = true;
+    }
+    if (!moved) break;
+  }
+
+  let cursor = 0;
+  return frames.map((f) => {
+    const from = cursor;
+    cursor += f;
+    return { from, frames: f };
+  });
+}
+
 /** Fallback script when the copywriter didn't emit one — split the hook on punctuation. */
 export function scriptFromHook(hook: string): Beat[] {
   const parts = hook
