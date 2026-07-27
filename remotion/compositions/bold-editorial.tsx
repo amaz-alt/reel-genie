@@ -176,7 +176,12 @@ export const BoldEditorial: React.FC<ReelProps> = ({ hook, script, brand, handle
   const { durationInFrames } = useVideoConfig();
   useGoogleFont(brand.fonts.display || "Poppins");
 
-  const beats: Beat[] = script && script.length ? script : scriptFromHook(hook);
+  const rawBeats: Beat[] = script && script.length ? script : scriptFromHook(hook);
+  // Drop any beat the copywriter emitted with no usable text — those rendered
+  // as blank coloured cards mid-reel.
+  const beats: Beat[] = rawBeats.filter(
+    (b) => (b?.lines ?? []).some((l) => String(l?.text ?? "").trim().length > 0),
+  );
   // TWO colours only — a field colour and an ink colour. Each beat swaps which
   // one is the background, exactly like the references.
   const bgLight = brand.colors.accent || brand.colors.background || "#eae9e2";
@@ -185,17 +190,9 @@ export const BoldEditorial: React.FC<ReelProps> = ({ hook, script, brand, handle
   const fgOnDark = bgLight;
   const handle = normalizeHandle(handleProp);
 
-  const weights = beats.map((b) => Math.max(0.45, b.hold ?? 1));
-  const totalW = weights.reduce((a, b) => a + b, 0);
-  let cursor = 0;
-  const spans = weights.map((w) => {
-    // Floor is low enough that a quick beat really flicks past (16f ≈ 0.53s),
-    // ceiling stops a heavy beat from stalling the reel (80f ≈ 2.6s).
-    const frames = Math.max(16, Math.min(80, Math.round((w / totalW) * durationInFrames)));
-    const from = cursor;
-    cursor += frames;
-    return { from, frames };
-  });
+  const weights = beats.map((b) => Math.max(0.35, b.hold ?? 1));
+  // Spans always sum to the full duration — no dead tail, no blank card.
+  const spans = computeSpans(weights, durationInFrames, 13, 96);
 
   const bgColors = beats.map((_, i) => (i % 2 === 0 ? bgLight : bgDark));
   const fgColors = beats.map((_, i) => (i % 2 === 0 ? fgOnLight : fgOnDark));
