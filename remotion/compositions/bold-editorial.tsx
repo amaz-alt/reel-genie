@@ -1,5 +1,5 @@
 import { AbsoluteFill, Audio, Easing, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
-import { scriptFromHook, useGoogleFont, type Beat, type ReelProps } from "../brand";
+import { computeSpans, scriptFromHook, useGoogleFont, type Beat, type ReelProps } from "../brand";
 
 /**
  * BOLD EDITORIAL — reverse-engineered from the rendyr.video reference reel.
