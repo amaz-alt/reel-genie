@@ -81,7 +81,9 @@ const BeatBody: React.FC<{
   sequenceFrames: number;
 }> = ({ beat, fg, fontFamily, sequenceFrames }) => {
   const motion = useBeatMotion(beat.hold ?? 1, sequenceFrames);
-  const heroLineText = beat.lines.find((l) => l.size === "hero")?.text ?? beat.lines[0].text;
+  const lines = (beat.lines ?? []).filter((l) => l && String(l.text ?? "").trim().length > 0);
+  if (!lines.length) return null;
+  const heroLineText = lines.find((l) => l.size === "hero")?.text ?? lines[0].text;
   const heroSz = heroSize(heroLineText);
   const smallSz = Math.max(44, Math.round(heroSz * 0.2));
 
