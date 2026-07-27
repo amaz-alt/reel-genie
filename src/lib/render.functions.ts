@@ -90,41 +90,63 @@ type CopyResult = {
  */
 function applyPacing(script: ScriptBeat[], pace: ReelPace): ScriptBeat[] {
   const paceMul: Record<ReelPace, number> = {
-    upbeat: 0.82,
-    punchy: 0.74,
-    tense: 1.0,
-    reflective: 1.18,
+    upbeat: 0.8,
+    punchy: 0.7,
+    tense: 0.95,
+    reflective: 1.16,
+  };
+  // How much the reel is allowed to swing between its fastest and slowest
+  // slide. The references swing hard: connectives blink past in ~0.4s while a
+  // punchline can sit for ~2.5s. Flat contrast is what reads as "fixed timing".
+  const contrast: Record<ReelPace, number> = {
+    upbeat: 1.25,
+    punchy: 1.45,
+    tense: 1.5,
+    reflective: 1.2,
   };
 
-
   const last = script.length - 1;
-  const out = script.map((beat, i) => {
+  const base = script.map((beat, i) => {
     const text = beat.lines.map((l) => l.text).join(" ");
     const words = text.split(/\s+/).filter(Boolean).length;
     const chars = text.replace(/\s+/g, "").length;
 
     // Readability floor: more glyphs on screen need more time.
-    let w = 0.5 + words * 0.17 + chars * 0.012;
+    let w = 0.45 + words * 0.16 + chars * 0.011;
 
-    // Blend with the copywriter's emphasis intent.
-    const ai = typeof beat.hold === "number" && beat.hold > 0 ? Math.min(2, Math.max(0.5, beat.hold)) : 1;
-    w = w * 0.55 + ai * 0.45;
+    // Blend with the copywriter's emphasis intent (it leads, we sanity-check).
+    const ai = typeof beat.hold === "number" && beat.hold > 0 ? Math.min(2.2, Math.max(0.4, beat.hold)) : 1;
+    w = w * 0.45 + ai * 0.55;
 
     // Stack beats carry hierarchy — they read slower than a single word.
-    if (beat.layout === "stack") w *= 1.08;
+    if (beat.layout === "stack") w *= 1.06;
 
-    // Setup connective beats ("the", "but if", "over the") flick past.
-    if (words <= 2 && chars <= 9) w *= 0.78;
+    // Setup/connective beats ("the", "but if", "over the") really flick past.
+    if (words <= 2 && chars <= 9) w *= 0.66;
+    if (words === 1 && chars <= 5) w *= 0.82;
 
-    // Punctuation = a breath. Final beat lands.
-    if (/[.!?]$/.test(text.trim())) w *= 1.18;
-    if (i === last) w *= 1.3;
-    if (i === 0) w *= 0.92;
+    // Punctuation = a breath. Comma is a half beat, full stop is a landing.
+    if (/[,;:]$/.test(text.trim())) w *= 1.1;
+    if (/[.!?]$/.test(text.trim())) w *= 1.22;
 
-    // Tense reels breathe unevenly: alternate pressure/release.
-    if (pace === "tense") w *= i % 2 === 0 ? 0.86 : 1.12;
+    // Shape of the reel: quick open, build, land.
+    if (i === 0) w *= 0.86;
+    if (i === last) w *= 1.45;
+    if (i === last - 1) w *= 0.8; // set-up snaps right before the payoff
 
-    return { ...beat, hold: Math.round(Math.min(2.2, Math.max(0.45, w * paceMul[pace])) * 100) / 100 };
+    // Tense reels breathe unevenly: pressure then release.
+    if (pace === "tense") w *= i % 2 === 0 ? 0.82 : 1.14;
+    return w;
+  });
+
+  // Expand around the reel's own average so every reel has real fast/slow
+  // contrast instead of everything drifting toward the middle.
+  const mean = base.reduce((a, b) => a + b, 0) / (base.length || 1);
+  const k = contrast[pace];
+  const out = script.map((beat, i) => {
+    const swung = mean + (base[i] - mean) * k;
+    const hold = Math.min(2.6, Math.max(0.35, swung * paceMul[pace]));
+    return { ...beat, hold: Math.round(hold * 100) / 100 };
   });
 
   // Never let two adjacent slides sit at the same speed — that's what reads
@@ -132,8 +154,9 @@ function applyPacing(script: ScriptBeat[], pace: ReelPace): ScriptBeat[] {
   for (let i = 1; i < out.length; i++) {
     const prev = out[i - 1].hold ?? 1;
     const cur = out[i].hold ?? 1;
-    if (Math.abs(cur - prev) < 0.08) {
-      out[i] = { ...out[i], hold: Math.round(Math.max(0.45, cur * (i % 2 ? 0.88 : 1.12)) * 100) / 100 };
+    if (Math.abs(cur - prev) < 0.14) {
+      const nudged = prev > cur ? cur * 0.82 : cur * 1.18;
+      out[i] = { ...out[i], hold: Math.round(Math.min(2.6, Math.max(0.35, nudged)) * 100) / 100 };
     }
   }
   return out;
@@ -309,14 +332,61 @@ async function generateCopy(input: {
       ? "• Use SECOND-PERSON voice throughout ('you', 'your'). Speak directly to the viewer. Do NOT slip into 'I' or 'we'."
       : "• Use FIRST-PERSON confession voice throughout ('I', 'we', 'my', 'our'). Do NOT slip into 'you'.";
 
+  // Content pillars — rotated per reel so the feed isn't 100% personal
+  // confession ("I lost four deals in March..."). Weighted distribution.
+  const PILLARS: Array<{ id: string; weight: number; brief: string }> = [
+    {
+      id: "personal-story",
+      weight: 2,
+      brief:
+        "PERSONAL STORY — a lived moment or mistake, told plainly, ending in a realisation the viewer recognises in themselves. Max 1 in 4 reels; do not make every reel this.",
+    },
+    {
+      id: "motivational-truth",
+      weight: 2,
+      brief:
+        "MOTIVATIONAL TRUTH — an encouraging, forward-moving idea the viewer can carry into today. Uplifting without being a slogan; earn it with one concrete detail.",
+    },
+    {
+      id: "teaching",
+      weight: 2,
+      brief:
+        "TEACHING / HOW-IT-WORKS — one useful, specific idea about the topic that leaves the viewer smarter in 20 seconds. Give the mechanism, not the platitude.",
+    },
+    {
+      id: "myth-bust",
+      weight: 1,
+      brief:
+        "MYTH-BUST / CONTRARIAN — name the common belief about the topic, then flip it. Confident, not rude.",
+    },
+    {
+      id: "observation",
+      weight: 1,
+      brief:
+        "OBSERVATION ABOUT THE AUDIENCE — a pattern you keep seeing in people like the viewer, stated as observation, never accusation.",
+    },
+    {
+      id: "future-pacing",
+      weight: 1,
+      brief:
+        "FUTURE PACING — paint the specific 'after' state once the viewer fixes this one thing. Concrete, near-term, believable.",
+    },
+  ];
+  const pool = PILLARS.flatMap((p) => Array<typeof p>(p.weight).fill(p));
+  const pillar = pool[Math.floor(Math.random() * pool.length)];
+
   const sys = [
     "You are a senior direct-response copywriter trained in the Alex Cattoni / Copy Posse school and in short-form kinetic typography reels.",
     "You are writing one 20–25 second reel. The output is not a slogan or a hook — it is a COMPLETE STORYTELLING SENTENCE broken into on-screen beats.",
+    "",
+    `CONTENT PILLAR FOR THIS REEL (obey it): ${pillar.brief}`,
+    "The brand's feed is a MIX of pillars — personal confession is only one of them. Whatever the pillar, the viewer must walk away with something for themselves: an idea, a lesson, or a push. Never just a diary entry.",
     "",
     "COPY RULES (Copy Posse):",
     "• Speak like a real person mid-thought, not a marketer. No slogans, no rhyme, no cliches ('game-changer', 'level up', 'unlock', 'elevate', 'unleash').",
     "• Indirect storytelling that makes the viewer realise their own mistake, current situation, or pain point. Never accuse; observe.",
     "• Use specific concrete details: numbers, timeframes, a mistake, a small realisation. Concrete beats abstract.",
+    "• Do NOT open with 'I realized' / 'I realised' — vary the opening construction every time.",
     voiceRule,
     "• The complete sentence should read out loud like something said to a friend after a hard week — not a caption.",
     "• Length: total sentence 30–44 words across 9–14 beats. Never a single word per beat unless it lands like a hammer.",

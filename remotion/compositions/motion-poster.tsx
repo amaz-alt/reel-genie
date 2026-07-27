@@ -1,5 +1,5 @@
 import { AbsoluteFill, Audio, Easing, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
-import { scriptFromHook, useGoogleFont, type Beat, type ReelProps } from "../brand";
+import { computeSpans, scriptFromHook, useGoogleFont, type Beat, type ReelProps } from "../brand";
 
 /**
  * MOTION POSTER — reverse-engineered from the yp.motionstudio reference reel.
@@ -242,23 +242,19 @@ export const MotionPoster: React.FC<ReelProps> = ({ hook, script, brand, handle:
   const { durationInFrames } = useVideoConfig();
   useGoogleFont(brand.fonts.display || "Poppins");
 
-  const beats: Beat[] = script && script.length ? script : scriptFromHook(hook);
+  const rawBeats: Beat[] = script && script.length ? script : scriptFromHook(hook);
+  const beats: Beat[] = rawBeats.filter(
+    (b) => (b?.lines ?? []).some((l) => String(l?.text ?? "").trim().length > 0),
+  );
   // TWO colours only: field ↔ ink, swapping per beat.
   const bgA = brand.colors.accent || brand.colors.background || "#F5E63B";
   const bgB = brand.colors.primary || "#0a0a0a";
   const handle = normalizeHandle(handleProp);
 
-  // Distribute frames respecting per-beat `hold` weights. Low floor so quick
-  // beats truly flick past (16f ≈ 0.53s), capped so heavy beats don't stall.
-  const weights = beats.map((b) => Math.max(0.45, b.hold ?? 1));
-  const totalW = weights.reduce((a, b) => a + b, 0);
-  let cursor = 0;
-  const spans = weights.map((w) => {
-    const frames = Math.max(16, Math.min(80, Math.round((w / totalW) * durationInFrames)));
-    const from = cursor;
-    cursor += frames;
-    return { from, frames };
-  });
+  // Frames follow per-beat hold weights and always sum to the full duration,
+  // so a clamped heavy beat can never leave a blank card at the end.
+  const weights = beats.map((b) => Math.max(0.35, b.hold ?? 1));
+  const spans = computeSpans(weights, durationInFrames, 13, 96);
 
 
   const bgColors = beats.map((_, i) => (i % 2 === 0 ? bgA : bgB));

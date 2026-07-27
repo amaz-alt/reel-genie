@@ -1,5 +1,5 @@
 import { AbsoluteFill, Audio, Easing, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
-import { scriptFromHook, useGoogleFont, type Beat, type ReelProps } from "../brand";
+import { computeSpans, scriptFromHook, useGoogleFont, type Beat, type ReelProps } from "../brand";
 
 /**
  * BOLD EDITORIAL — reverse-engineered from the rendyr.video reference reel.
@@ -81,7 +81,9 @@ const BeatBody: React.FC<{
   sequenceFrames: number;
 }> = ({ beat, fg, fontFamily, sequenceFrames }) => {
   const motion = useBeatMotion(beat.hold ?? 1, sequenceFrames);
-  const heroLineText = beat.lines.find((l) => l.size === "hero")?.text ?? beat.lines[0].text;
+  const lines = (beat.lines ?? []).filter((l) => l && String(l.text ?? "").trim().length > 0);
+  if (!lines.length) return null;
+  const heroLineText = lines.find((l) => l.size === "hero")?.text ?? lines[0].text;
   const heroSz = heroSize(heroLineText);
   const smallSz = Math.max(44, Math.round(heroSz * 0.2));
 
@@ -102,7 +104,7 @@ const BeatBody: React.FC<{
           padding: "0 70px",
         }}
       >
-        {beat.lines[0].text}
+        {lines[0].text}
       </div>
     );
   }
@@ -122,7 +124,7 @@ const BeatBody: React.FC<{
         padding: "0 70px",
       }}
     >
-      {beat.lines.map((l, i) => {
+      {lines.map((l, i) => {
         const isHero = l.size === "hero";
         const sz = isHero ? heroSz : smallSz;
         return (
@@ -174,7 +176,12 @@ export const BoldEditorial: React.FC<ReelProps> = ({ hook, script, brand, handle
   const { durationInFrames } = useVideoConfig();
   useGoogleFont(brand.fonts.display || "Poppins");
 
-  const beats: Beat[] = script && script.length ? script : scriptFromHook(hook);
+  const rawBeats: Beat[] = script && script.length ? script : scriptFromHook(hook);
+  // Drop any beat the copywriter emitted with no usable text — those rendered
+  // as blank coloured cards mid-reel.
+  const beats: Beat[] = rawBeats.filter(
+    (b) => (b?.lines ?? []).some((l) => String(l?.text ?? "").trim().length > 0),
+  );
   // TWO colours only — a field colour and an ink colour. Each beat swaps which
   // one is the background, exactly like the references.
   const bgLight = brand.colors.accent || brand.colors.background || "#eae9e2";
@@ -183,17 +190,9 @@ export const BoldEditorial: React.FC<ReelProps> = ({ hook, script, brand, handle
   const fgOnDark = bgLight;
   const handle = normalizeHandle(handleProp);
 
-  const weights = beats.map((b) => Math.max(0.45, b.hold ?? 1));
-  const totalW = weights.reduce((a, b) => a + b, 0);
-  let cursor = 0;
-  const spans = weights.map((w) => {
-    // Floor is low enough that a quick beat really flicks past (16f ≈ 0.53s),
-    // ceiling stops a heavy beat from stalling the reel (80f ≈ 2.6s).
-    const frames = Math.max(16, Math.min(80, Math.round((w / totalW) * durationInFrames)));
-    const from = cursor;
-    cursor += frames;
-    return { from, frames };
-  });
+  const weights = beats.map((b) => Math.max(0.35, b.hold ?? 1));
+  // Spans always sum to the full duration — no dead tail, no blank card.
+  const spans = computeSpans(weights, durationInFrames, 13, 96);
 
   const bgColors = beats.map((_, i) => (i % 2 === 0 ? bgLight : bgDark));
   const fgColors = beats.map((_, i) => (i % 2 === 0 ? fgOnLight : fgOnDark));
