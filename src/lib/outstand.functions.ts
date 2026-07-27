@@ -286,15 +286,37 @@ export const publishReel = createServerFn({ method: "POST" })
           });
           continue;
         }
+        // Pinterest ranks on title + description + alt text + destination link,
+        // so fill every field the API accepts instead of just the board.
+        const pinLink =
+          link ??
+          pickString(product, ["website", "page_url", "shop_url", "buy_url", "affiliate_link"]) ??
+          null;
+        const pinTitle = (title ?? hook ?? "").trim().slice(0, 95) || "New reel";
+        const productDesc = pickString(product, ["description", "summary", "details", "benefit", "notes"]);
+        const pinDescription = (productDesc ? `${content}\n\n${productDesc}` : content).slice(0, 800);
+        const altText = `${pinTitle} — ${(hook || "").trim()}`.replace(/\s+/g, " ").slice(0, 500);
+        const keywords = hashtags.map((t) => String(t).replace(/^#/, "")).filter(Boolean).slice(0, 10);
+
         // Per Outstand docs: platform config is a TOP-LEVEL key named after the
         // network — NOT nested inside `pinterestConfiguration` or
         // `networkOverrideConfiguration`. Wrappers get ignored → board_id
         // missing → Pinterest rejects with "board_id required".
         body.pinterest = {
           board_id: boardIds[0],
-          ...(title ? { title } : {}),
-          ...(link ? { link } : {}),
+          title: pinTitle,
+          description: pinDescription,
+          alt_text: altText,
+          ...(pinLink ? { link: pinLink } : {}),
+          ...(keywords.length ? { keywords } : {}),
         };
+        // Alt text on the media object too — some ingesters read it there.
+        body.containers = [
+          {
+            content: pinDescription,
+            media: [{ url: outstandMediaUrl, filename, alt_text: altText }],
+          },
+        ];
       }
 
 
