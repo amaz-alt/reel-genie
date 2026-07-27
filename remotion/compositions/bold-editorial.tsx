@@ -104,7 +104,7 @@ const BeatBody: React.FC<{
           padding: "0 70px",
         }}
       >
-        {beat.lines[0].text}
+        {lines[0].text}
       </div>
     );
   }
