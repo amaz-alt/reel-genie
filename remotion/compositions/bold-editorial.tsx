@@ -124,7 +124,7 @@ const BeatBody: React.FC<{
         padding: "0 70px",
       }}
     >
-      {beat.lines.map((l, i) => {
+      {lines.map((l, i) => {
         const isHero = l.size === "hero";
         const sz = isHero ? heroSz : smallSz;
         return (
