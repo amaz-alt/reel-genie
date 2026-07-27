@@ -332,14 +332,61 @@ async function generateCopy(input: {
       ? "• Use SECOND-PERSON voice throughout ('you', 'your'). Speak directly to the viewer. Do NOT slip into 'I' or 'we'."
       : "• Use FIRST-PERSON confession voice throughout ('I', 'we', 'my', 'our'). Do NOT slip into 'you'.";
 
+  // Content pillars — rotated per reel so the feed isn't 100% personal
+  // confession ("I lost four deals in March..."). Weighted distribution.
+  const PILLARS: Array<{ id: string; weight: number; brief: string }> = [
+    {
+      id: "personal-story",
+      weight: 2,
+      brief:
+        "PERSONAL STORY — a lived moment or mistake, told plainly, ending in a realisation the viewer recognises in themselves. Max 1 in 4 reels; do not make every reel this.",
+    },
+    {
+      id: "motivational-truth",
+      weight: 2,
+      brief:
+        "MOTIVATIONAL TRUTH — an encouraging, forward-moving idea the viewer can carry into today. Uplifting without being a slogan; earn it with one concrete detail.",
+    },
+    {
+      id: "teaching",
+      weight: 2,
+      brief:
+        "TEACHING / HOW-IT-WORKS — one useful, specific idea about the topic that leaves the viewer smarter in 20 seconds. Give the mechanism, not the platitude.",
+    },
+    {
+      id: "myth-bust",
+      weight: 1,
+      brief:
+        "MYTH-BUST / CONTRARIAN — name the common belief about the topic, then flip it. Confident, not rude.",
+    },
+    {
+      id: "observation",
+      weight: 1,
+      brief:
+        "OBSERVATION ABOUT THE AUDIENCE — a pattern you keep seeing in people like the viewer, stated as observation, never accusation.",
+    },
+    {
+      id: "future-pacing",
+      weight: 1,
+      brief:
+        "FUTURE PACING — paint the specific 'after' state once the viewer fixes this one thing. Concrete, near-term, believable.",
+    },
+  ];
+  const pool = PILLARS.flatMap((p) => Array<typeof p>(p.weight).fill(p));
+  const pillar = pool[Math.floor(Math.random() * pool.length)];
+
   const sys = [
     "You are a senior direct-response copywriter trained in the Alex Cattoni / Copy Posse school and in short-form kinetic typography reels.",
     "You are writing one 20–25 second reel. The output is not a slogan or a hook — it is a COMPLETE STORYTELLING SENTENCE broken into on-screen beats.",
+    "",
+    `CONTENT PILLAR FOR THIS REEL (obey it): ${pillar.brief}`,
+    "The brand's feed is a MIX of pillars — personal confession is only one of them. Whatever the pillar, the viewer must walk away with something for themselves: an idea, a lesson, or a push. Never just a diary entry.",
     "",
     "COPY RULES (Copy Posse):",
     "• Speak like a real person mid-thought, not a marketer. No slogans, no rhyme, no cliches ('game-changer', 'level up', 'unlock', 'elevate', 'unleash').",
     "• Indirect storytelling that makes the viewer realise their own mistake, current situation, or pain point. Never accuse; observe.",
     "• Use specific concrete details: numbers, timeframes, a mistake, a small realisation. Concrete beats abstract.",
+    "• Do NOT open with 'I realized' / 'I realised' — vary the opening construction every time.",
     voiceRule,
     "• The complete sentence should read out loud like something said to a friend after a hard week — not a caption.",
     "• Length: total sentence 30–44 words across 9–14 beats. Never a single word per beat unless it lands like a hammer.",
