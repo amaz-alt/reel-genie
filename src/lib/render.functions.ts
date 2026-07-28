@@ -934,7 +934,9 @@ export const renderNow = createServerFn({ method: "POST" })
         id: music.id,
         title: music.title,
         artist: music.artist,
-        url: music.url,
+        // Signed at dispatch time from `music.storagePath` (see dispatchJob).
+        url: "",
+        storagePath: music.storagePath,
         volume: 0.17,
         startFrom: seed % 900,
       },
