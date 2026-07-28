@@ -61,6 +61,8 @@ export type RenderProps = {
     title: string;
     artist: string;
     url: string;
+    /** Private-bucket object path; signed into `url` at dispatch time. */
+    storagePath?: string;
     volume?: number;
     startFrom?: number;
   };
