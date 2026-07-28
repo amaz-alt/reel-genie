@@ -88,7 +88,9 @@ app.post("/render", async (req, reply) => {
 });
 
 app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
-  app.log.info(`render-worker listening on :${PORT}`);
+  app.log.info(
+    `render-worker v${WORKER_VERSION} listening on :${PORT} (templates ${TEMPLATE_FINGERPRINT})`,
+  );
   warmRenderer()
     .then(() => app.log.info("renderer warmed: browser + bundle ready"))
     .catch((err) => app.log.error({ err }, "renderer warmup failed"));
