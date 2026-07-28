@@ -934,7 +934,9 @@ export const renderNow = createServerFn({ method: "POST" })
         id: music.id,
         title: music.title,
         artist: music.artist,
-        url: music.url,
+        // Signed at dispatch time from `music.storagePath` (see dispatchJob).
+        url: "",
+        storagePath: music.storagePath,
         volume: 0.17,
         startFrom: seed % 900,
       },
@@ -1055,6 +1057,31 @@ async function dispatchJob(
   );
   const durationInFrames = Number.isFinite(propsDuration) && propsDuration >= 60 ? propsDuration : 240;
 
+  // Music: sign a fresh download URL for the self-hosted track. If signing
+  // fails we render WITHOUT music rather than failing the whole job — a
+  // missing soundtrack must never kill a reel (this is what the 403s did).
+  const props = { ...(job.props as RenderJobPayload["props"]) };
+  const musicPath = props.music?.storagePath;
+  if (props.music) {
+    if (musicPath) {
+      const { data: musicSigned, error: musicErr } = await admin.storage
+        .from("brand-assets")
+        .createSignedUrl(musicPath, 60 * 60 * 6);
+      if (musicErr || !musicSigned?.signedUrl) {
+        await appendLog(admin, job.id, {
+          level: "warn",
+          stage: "music",
+          message: `could not sign ${musicPath}, rendering without music`,
+        });
+        delete props.music;
+      } else {
+        props.music = { ...props.music, url: musicSigned.signedUrl };
+      }
+    } else if (!props.music.url) {
+      delete props.music;
+    }
+  }
+
   const payload: RenderJobPayload = {
     jobId: job.id,
     templateId: job.template_id,
@@ -1062,7 +1089,7 @@ async function dispatchJob(
     height: 1920,
     fps: 30,
     durationInFrames,
-    props: job.props,
+    props,
     upload: { signedUrl: signed.signedUrl, path: job.storage_path },
     supabase: {
       url: process.env.SUPABASE_URL!,
