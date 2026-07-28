@@ -1,5 +1,44 @@
 import Fastify from "fastify";
+import { createHash } from "node:crypto";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { renderJob, isInFlight, markInFlight, clearInFlight, warmRenderer } from "./render.mjs";
+
+const WORKER_VERSION = "0.7.0";
+
+/**
+ * Fingerprint the bundled Remotion templates. /health returns it so we can tell
+ * from the app whether the VPS is actually running the latest templates or a
+ * stale image (the usual cause of "I already fixed that" bugs reappearing).
+ */
+function fingerprintTemplates() {
+  const root = join(dirname(fileURLToPath(import.meta.url)), "..", "remotion");
+  const hash = createHash("sha256");
+  const walk = (dir) => {
+    let entries = [];
+    try {
+      entries = readdirSync(dir).sort();
+    } catch {
+      return;
+    }
+    for (const name of entries) {
+      const p = join(dir, name);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (/\.(tsx?|jsx?)$/.test(name)) hash.update(name).update(readFileSync(p));
+    }
+  };
+  walk(root);
+  return hash.digest("hex").slice(0, 12);
+}
+
+const TEMPLATE_FINGERPRINT = (() => {
+  try {
+    return fingerprintTemplates();
+  } catch {
+    return "unknown";
+  }
+})();
 
 const PORT = Number(process.env.PORT ?? 8787);
 const TOKEN = process.env.RENDER_WORKER_TOKEN;
