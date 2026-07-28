@@ -1075,7 +1075,21 @@ async function dispatchJob(
   };
 
   try {
-    await getRenderService().submit(payload);
+    const service = getRenderService();
+    // Guard: a stale VPS image silently re-introduces the blank-slide + no
+    // colour-invert bug. Refuse to render against a build without the fixes.
+    const health = (await service.health().catch(() => null)) as
+      | { ok?: boolean; version?: string; features?: string[] }
+      | null;
+    const features = health?.features ?? [];
+    if (!features.includes("contiguous-spans") || !features.includes("two-colour-invert")) {
+      throw new Error(
+        `Render worker is running a stale build (version ${health?.version ?? "unknown"}). ` +
+          `Redeploy the VPS worker so it picks up the fixed Remotion templates — ` +
+          `until then bold-editorial renders blank slides and skips colour inversion.`,
+      );
+    }
+    await service.submit(payload);
     if (job.reel_id) {
       await admin.from("reels").update({ status: "rendering" }).eq("id", job.reel_id);
     }
