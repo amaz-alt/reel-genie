@@ -58,7 +58,13 @@ app.addHook("onRequest", async (req, reply) => {
   }
 });
 
-app.get("/health", async () => ({ ok: true, version: "0.5.1" }));
+app.get("/health", async () => ({
+  ok: true,
+  version: WORKER_VERSION,
+  templates: TEMPLATE_FINGERPRINT,
+  // Feature flags let the app assert the deployed build has the fixes it needs.
+  features: ["contiguous-spans", "two-colour-invert", "dynamic-pacing"],
+}));
 
 app.post("/render", async (req, reply) => {
   const job = req.body;
