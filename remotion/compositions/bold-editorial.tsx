@@ -31,18 +31,30 @@ function normalizeHandle(name?: string | null) {
   return `@${cleaned.toLowerCase().replace(/[^a-z0-9._]+/g, "")}`.slice(0, 28);
 }
 
-function useBeatMotion(hold: number, sequenceFrames: number) {
+/**
+ * Green/white reference: occasional beats arrive from above or below instead
+ * of just settling. Deterministic by beat index, never two in a row.
+ */
+function driftY(index: number) {
+  const slot = index % 4;
+  if (slot === 1) return -30;
+  if (slot === 3) return 34;
+  return 0;
+}
+
+function useBeatMotion(hold: number, sequenceFrames: number, index = 0) {
   const local = useCurrentFrame();
   const entranceLen = Math.round(interpolate(hold, [0.5, 1.8], [4, 10], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }));
   const exitLen = 5;
   const exitStart = Math.max(entranceLen + 6, sequenceFrames - exitLen);
+  const dy = driftY(index);
 
   const entranceOpacity = interpolate(local, [0, entranceLen], [0, 1], { easing: EASE_OUT, extrapolateRight: "clamp" });
-  const entranceY = interpolate(local, [0, entranceLen + 2], [10, 0], { easing: EASE_OUT, extrapolateRight: "clamp" });
+  const entranceY = interpolate(local, [0, entranceLen + 2], [dy || 10, 0], { easing: EASE_OUT, extrapolateRight: "clamp" });
   const entranceBlur = interpolate(local, [0, entranceLen], [1.6, 0], { easing: EASE_OUT, extrapolateRight: "clamp" });
 
   const exitOpacity = interpolate(local, [exitStart, exitStart + exitLen], [1, 0], { easing: EASE_IN, extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const exitY = interpolate(local, [exitStart, exitStart + exitLen], [0, -3], { easing: EASE_IN, extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const exitY = interpolate(local, [exitStart, exitStart + exitLen], [0, dy ? Math.sign(dy) * -4 : -3], { easing: EASE_IN, extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 
   return {
     opacity: Math.min(entranceOpacity, exitOpacity),
@@ -79,8 +91,9 @@ const BeatBody: React.FC<{
   fg: string;
   fontFamily: string;
   sequenceFrames: number;
-}> = ({ beat, fg, fontFamily, sequenceFrames }) => {
-  const motion = useBeatMotion(beat.hold ?? 1, sequenceFrames);
+  index: number;
+}> = ({ beat, fg, fontFamily, sequenceFrames, index }) => {
+  const motion = useBeatMotion(beat.hold ?? 1, sequenceFrames, index);
   const lines = (beat.lines ?? []).filter((l) => l && String(l.text ?? "").trim().length > 0);
   if (!lines.length) return null;
   const heroLineText = lines.find((l) => l.size === "hero")?.text ?? lines[0].text;
@@ -212,7 +225,7 @@ export const BoldEditorial: React.FC<ReelProps> = ({ hook, script, brand, handle
             <AbsoluteFill>
               <Watermark handle={handle} color={fg} />
               <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
-                <BeatBody beat={beat} fg={fg} fontFamily={fontFamily} sequenceFrames={frames} />
+                <BeatBody beat={beat} fg={fg} fontFamily={fontFamily} sequenceFrames={frames} index={i} />
               </AbsoluteFill>
             </AbsoluteFill>
           </Sequence>
