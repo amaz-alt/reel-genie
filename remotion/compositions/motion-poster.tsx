@@ -249,19 +249,21 @@ const StackBeat: React.FC<{
             const isHero = l.size === "hero";
             const sz = isHero ? heroSize : smallSize;
             return (
-              <div
-                key={i}
-                style={{
-                  fontWeight: isHero ? 900 : 700,
-                  fontSize: sz,
-                  letterSpacing: `${-sz * (isHero ? 0.045 : 0.02)}px`,
-                  lineHeight: 0.94,
-                }}
-              >
-                {l.text}
-              </div>
+              <StaggerLine key={i} order={i} beatIndex={index}>
+                <div
+                  style={{
+                    fontWeight: isHero ? 900 : 700,
+                    fontSize: sz,
+                    letterSpacing: `${-sz * (isHero ? 0.045 : 0.02)}px`,
+                    lineHeight: 0.94,
+                  }}
+                >
+                  {l.text}
+                </div>
+              </StaggerLine>
             );
           })}
+
         </div>
       </AbsoluteFill>
     </AbsoluteFill>
