@@ -48,7 +48,19 @@ function normalizeHandle(name?: string | null) {
  * slower, more deliberate entrance; every beat gets a short exit before
  * the hard cut so the transition doesn't feel snapped.
  */
-function useBeatMotion(hold: number, sequenceFrames: number) {
+/**
+ * Yellow reference: most beats settle straight up, but every so often a beat
+ * drifts in from the left or the right. Deterministic by beat index so a
+ * re-render is identical, and never two slides in a row.
+ */
+function driftX(index: number) {
+  const slot = index % 4;
+  if (slot === 1) return -34;
+  if (slot === 3) return 30;
+  return 0;
+}
+
+function useBeatMotion(hold: number, sequenceFrames: number, index = 0) {
   const local = useCurrentFrame();
   // Entrance length: 4f snappy → 8f deliberate.
   const entranceLen = Math.round(interpolate(hold, [0.5, 1.8], [4, 9], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }));
@@ -56,14 +68,17 @@ function useBeatMotion(hold: number, sequenceFrames: number) {
   const exitStart = Math.max(entranceLen + 6, sequenceFrames - exitLen);
 
   const entranceOpacity = interpolate(local, [0, entranceLen], [0, 1], { easing: EASE_OUT, extrapolateRight: "clamp" });
-  const entranceY = interpolate(local, [0, entranceLen + 2], [14, 0], { easing: EASE_OUT, extrapolateRight: "clamp" });
+  const dx = driftX(index);
+  const entranceY = interpolate(local, [0, entranceLen + 2], [dx ? 4 : 14, 0], { easing: EASE_OUT, extrapolateRight: "clamp" });
+  const entranceX = interpolate(local, [0, entranceLen + 3], [dx, 0], { easing: EASE_OUT, extrapolateRight: "clamp" });
 
   const exitOpacity = interpolate(local, [exitStart, exitStart + exitLen], [1, 0], { easing: EASE_IN, extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const exitY = interpolate(local, [exitStart, exitStart + exitLen], [0, -3], { easing: EASE_IN, extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const exitX = interpolate(local, [exitStart, exitStart + exitLen], [0, dx * 0.12], { easing: EASE_IN, extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 
   const opacity = Math.min(entranceOpacity, exitOpacity);
   const y = entranceY + exitY;
-  return { opacity, transform: `translateY(${y}px)` };
+  return { opacity, transform: `translate(${entranceX + exitX}px, ${y}px)` };
 }
 
 const IGIcon: React.FC<{ color: string; size?: number }> = ({ color, size = 22 }) => (
