@@ -126,6 +126,53 @@ const Watermark: React.FC<{ handle: string; color: string }> = ({ handle, color 
   );
 };
 
+/**
+ * Per-word entrance. Words inside a line arrive one after another with a
+ * small stagger, drifting in from the left or the right. Deterministic by
+ * beat index + word index so re-renders are identical.
+ */
+const StaggerWords: React.FC<{
+  text: string;
+  beatIndex: number;
+  entranceLen: number;
+  fontSize: number;
+}> = ({ text, beatIndex, entranceLen, fontSize }) => {
+  const local = useCurrentFrame();
+  const words = text.split(/\s+/).filter(Boolean);
+  return (
+    <>
+      {words.map((w, i) => {
+        const delay = i * 2;
+        const dir = (beatIndex + i) % 2 === 0 ? -1 : 1;
+        const amount = words.length > 1 ? 26 : 16;
+        const x = interpolate(local, [delay, delay + entranceLen + 3], [dir * amount, 0], {
+          easing: EASE_OUT,
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
+        const o = interpolate(local, [delay, delay + entranceLen], [0, 1], {
+          easing: EASE_OUT,
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
+        return (
+          <span
+            key={i}
+            style={{
+              display: "inline-block",
+              transform: `translateX(${x}px)`,
+              opacity: o,
+              marginRight: i === words.length - 1 ? 0 : fontSize * 0.22,
+            }}
+          >
+            {w}
+          </span>
+        );
+      })}
+    </>
+  );
+};
+
 const SingleBeat: React.FC<{
   beat: Beat;
   fg: string;
@@ -154,12 +201,13 @@ const SingleBeat: React.FC<{
             opacity: motion.opacity,
           }}
         >
-          {line.text}
+          <StaggerWords text={line.text} beatIndex={index} entranceLen={6} fontSize={size} />
         </div>
       </AbsoluteFill>
     </AbsoluteFill>
   );
 };
+
 
 const StackBeat: React.FC<{
   beat: Beat;
