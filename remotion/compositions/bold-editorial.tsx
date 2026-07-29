@@ -225,7 +225,7 @@ export const BoldEditorial: React.FC<ReelProps> = ({ hook, script, brand, handle
             <AbsoluteFill>
               <Watermark handle={handle} color={fg} />
               <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
-                <BeatBody beat={beat} fg={fg} fontFamily={fontFamily} sequenceFrames={frames} />
+                <BeatBody beat={beat} fg={fg} fontFamily={fontFamily} sequenceFrames={frames} index={i} />
               </AbsoluteFill>
             </AbsoluteFill>
           </Sequence>
