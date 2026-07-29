@@ -86,6 +86,69 @@ const Watermark: React.FC<{ handle: string; color: string }> = ({ handle, color 
   );
 };
 
+/** Words arrive one after another, alternating up/down drift. */
+const StaggerWords: React.FC<{ text: string; beatIndex: number; fontSize: number }> = ({
+  text,
+  beatIndex,
+  fontSize,
+}) => {
+  const local = useCurrentFrame();
+  const words = text.split(/\s+/).filter(Boolean);
+  return (
+    <>
+      {words.map((w, i) => {
+        const delay = i * 2;
+        const dir = (beatIndex + i) % 2 === 0 ? 1 : -1;
+        const y = interpolate(local, [delay, delay + 9], [dir * (words.length > 1 ? 26 : 16), 0], {
+          easing: EASE_OUT,
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
+        const o = interpolate(local, [delay, delay + 7], [0, 1], {
+          easing: EASE_OUT,
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
+        return (
+          <span
+            key={i}
+            style={{
+              display: "inline-block",
+              transform: `translateY(${y}px)`,
+              opacity: o,
+              marginRight: i === words.length - 1 ? 0 : fontSize * 0.22,
+            }}
+          >
+            {w}
+          </span>
+        );
+      })}
+    </>
+  );
+};
+
+/** One stacked line, arriving slightly after the line above it. */
+const StaggerLine: React.FC<{ order: number; beatIndex: number; children: React.ReactNode }> = ({
+  order,
+  beatIndex,
+  children,
+}) => {
+  const local = useCurrentFrame();
+  const delay = order * 3;
+  const dir = (beatIndex + order) % 2 === 0 ? 1 : -1;
+  const y = interpolate(local, [delay, delay + 10], [dir * 22, 0], {
+    easing: EASE_OUT,
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const o = interpolate(local, [delay, delay + 7], [0, 1], {
+    easing: EASE_OUT,
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  return <div style={{ transform: `translateY(${y}px)`, opacity: o }}>{children}</div>;
+};
+
 const BeatBody: React.FC<{
   beat: Beat;
   fg: string;
@@ -117,7 +180,7 @@ const BeatBody: React.FC<{
           padding: "0 70px",
         }}
       >
-        {lines[0].text}
+        <StaggerWords text={lines[0].text} beatIndex={index} fontSize={heroSz} />
       </div>
     );
   }
@@ -141,22 +204,24 @@ const BeatBody: React.FC<{
         const isHero = l.size === "hero";
         const sz = isHero ? heroSz : smallSz;
         return (
-          <div
-            key={i}
-            style={{
-              fontWeight: isHero ? 900 : 700,
-              fontSize: sz,
-              letterSpacing: `${-sz * (isHero ? 0.04 : 0.015)}px`,
-              lineHeight: 0.94,
-            }}
-          >
-            {l.text}
-          </div>
+          <StaggerLine key={i} order={i} beatIndex={index}>
+            <div
+              style={{
+                fontWeight: isHero ? 900 : 700,
+                fontSize: sz,
+                letterSpacing: `${-sz * (isHero ? 0.04 : 0.015)}px`,
+                lineHeight: 0.94,
+              }}
+            >
+              {l.text}
+            </div>
+          </StaggerLine>
         );
       })}
     </div>
   );
 };
+
 
 const BackgroundLayer: React.FC<{
   spans: Array<{ from: number; frames: number }>;

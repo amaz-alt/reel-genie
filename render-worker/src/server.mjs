@@ -5,7 +5,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderJob, isInFlight, markInFlight, clearInFlight, warmRenderer } from "./render.mjs";
 
-const WORKER_VERSION = "0.7.1";
+const WORKER_VERSION = "0.7.2";
 
 /**
  * Fingerprint the bundled Remotion templates. /health returns it so we can tell
