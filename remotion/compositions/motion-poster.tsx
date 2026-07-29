@@ -208,6 +208,28 @@ const SingleBeat: React.FC<{
   );
 };
 
+/** One stacked line, arriving slightly after the line above it. */
+const StaggerLine: React.FC<{ order: number; beatIndex: number; children: React.ReactNode }> = ({
+  order,
+  beatIndex,
+  children,
+}) => {
+  const local = useCurrentFrame();
+  const delay = order * 3;
+  const dir = (beatIndex + order) % 2 === 0 ? -1 : 1;
+  const x = interpolate(local, [delay, delay + 9], [dir * 24, 0], {
+    easing: EASE_OUT,
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const o = interpolate(local, [delay, delay + 7], [0, 1], {
+    easing: EASE_OUT,
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  return <div style={{ transform: `translateX(${x}px)`, opacity: o }}>{children}</div>;
+};
+
 
 const StackBeat: React.FC<{
   beat: Beat;
