@@ -167,8 +167,9 @@ const StackBeat: React.FC<{
   fontFamily: string;
   handle: string;
   sequenceFrames: number;
-}> = ({ beat, fg, fontFamily, handle, sequenceFrames }) => {
-  const motion = useBeatMotion(beat.hold ?? 1, sequenceFrames);
+  index: number;
+}> = ({ beat, fg, fontFamily, handle, sequenceFrames, index }) => {
+  const motion = useBeatMotion(beat.hold ?? 1, sequenceFrames, index);
   const heroLine = beat.lines.find((l) => l.size === "hero")?.text ?? beat.lines[0].text;
   const heroSize = fitHeroSize(heroLine);
   const smallSize = Math.max(46, Math.round(heroSize * 0.22));
