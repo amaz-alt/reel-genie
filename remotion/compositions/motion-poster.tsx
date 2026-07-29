@@ -132,8 +132,9 @@ const SingleBeat: React.FC<{
   fontFamily: string;
   handle: string;
   sequenceFrames: number;
-}> = ({ beat, fg, fontFamily, handle, sequenceFrames }) => {
-  const motion = useBeatMotion(beat.hold ?? 1, sequenceFrames);
+  index: number;
+}> = ({ beat, fg, fontFamily, handle, sequenceFrames, index }) => {
+  const motion = useBeatMotion(beat.hold ?? 1, sequenceFrames, index);
   const line = beat.lines[0];
   const size = fitHeroSize(line.text);
   return (
