@@ -91,8 +91,9 @@ const BeatBody: React.FC<{
   fg: string;
   fontFamily: string;
   sequenceFrames: number;
-}> = ({ beat, fg, fontFamily, sequenceFrames }) => {
-  const motion = useBeatMotion(beat.hold ?? 1, sequenceFrames);
+  index: number;
+}> = ({ beat, fg, fontFamily, sequenceFrames, index }) => {
+  const motion = useBeatMotion(beat.hold ?? 1, sequenceFrames, index);
   const lines = (beat.lines ?? []).filter((l) => l && String(l.text ?? "").trim().length > 0);
   if (!lines.length) return null;
   const heroLineText = lines.find((l) => l.size === "hero")?.text ?? lines[0].text;
