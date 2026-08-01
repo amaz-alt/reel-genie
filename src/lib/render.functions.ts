@@ -171,16 +171,17 @@ function derivePace(text: string): ReelPace {
 }
 
 
-type LockedTemplateId = "motion-poster" | "bold-editorial";
+type LockedTemplateId = "motion-poster" | "bold-editorial" | "hybrid-flow";
 
-const LOCKED_TEMPLATE_IDS = ["motion-poster", "bold-editorial"] as const;
+const LOCKED_TEMPLATE_IDS = ["motion-poster", "bold-editorial", "hybrid-flow"] as const;
 
 function isLockedTemplateId(value: unknown): value is LockedTemplateId {
-  return value === "motion-poster" || value === "bold-editorial";
+  return value === "motion-poster" || value === "bold-editorial" || value === "hybrid-flow";
 }
 
 function oppositeTemplate(templateId: LockedTemplateId): LockedTemplateId {
-  return templateId === "motion-poster" ? "bold-editorial" : "motion-poster";
+  const i = LOCKED_TEMPLATE_IDS.indexOf(templateId);
+  return LOCKED_TEMPLATE_IDS[(i + 1) % LOCKED_TEMPLATE_IDS.length];
 }
 
 /* -------------------- product rotation from Google Sheet -------------------- */
@@ -509,7 +510,12 @@ function buildReferenceQualityPlan(input: {
   const stackRatio = input.script.length
     ? input.script.filter((beat) => beat.layout === "stack").length / input.script.length
     : 0;
-  const referenceName = input.templateId === "motion-poster" ? "yp.motionstudio" : "rendyr.video";
+  const referenceName =
+    input.templateId === "motion-poster"
+      ? "yp.motionstudio"
+      : input.templateId === "hybrid-flow"
+        ? "yp.motionstudio + rendyr.video (blended)"
+        : "rendyr.video";
   const checklist =
     input.templateId === "motion-poster"
       ? [
@@ -787,7 +793,7 @@ export const renderNow = createServerFn({ method: "POST" })
         brand_id: z.string().uuid(),
         hook: z.string().min(1).max(200).optional(),
         caption: z.string().max(1000).optional(),
-        template_id: z.enum(["motion-poster", "bold-editorial", "alternate"]).optional(),
+        template_id: z.enum(["motion-poster", "bold-editorial", "hybrid-flow", "alternate"]).optional(),
       })
       .parse(data),
   )

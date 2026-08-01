@@ -1,6 +1,7 @@
 import { Composition } from "remotion";
 import { MotionPoster } from "./compositions/motion-poster";
 import { BoldEditorial } from "./compositions/bold-editorial";
+import { HybridFlow } from "./compositions/hybrid-flow";
 import { KineticType } from "./compositions/kinetic-type";
 import { ProductShowcase } from "./compositions/product-showcase";
 import { QuoteCard } from "./compositions/quote-card";
@@ -33,6 +34,7 @@ export const RemotionRoot: React.FC = () => (
   <>
     <Composition id="motion-poster" component={MotionPoster} defaultProps={defaultProps} {...base} />
     <Composition id="bold-editorial" component={BoldEditorial} defaultProps={defaultProps} {...base} />
+    <Composition id="hybrid-flow" component={HybridFlow} defaultProps={defaultProps} {...base} />
     <Composition id="kinetic-type" component={KineticType} defaultProps={defaultProps} {...base} />
     <Composition id="product-showcase" component={ProductShowcase} defaultProps={defaultProps} {...base} />
     <Composition id="quote-card" component={QuoteCard} defaultProps={defaultProps} {...base} />
