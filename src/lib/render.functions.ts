@@ -25,7 +25,7 @@ import {
   type RenderProps,
   type TypographyStylePlan,
 } from "./render/RenderService";
-import { pickTrack } from "./music-library";
+import { pickTrackForReel } from "./music-library";
 import { TEMPLATES } from "./templates";
 
 const DEFAULT_COLORS = {
@@ -889,7 +889,21 @@ export const renderNow = createServerFn({ method: "POST" })
 
     const seed = Math.floor(Math.random() * 1e9);
     const variant = MOTION_VARIANTS[Math.floor(Math.random() * MOTION_VARIANTS.length)];
-    const music = pickTrack("trendy", seed);
+    // Audio variety: mood follows the copy's pace, and the last few tracks
+    // used by this brand are excluded so consecutive reels never repeat audio.
+    const { data: recentJobRows } = await supabase
+      .from("render_jobs")
+      .select("props")
+      .eq("brand_id", brand.id)
+      .order("created_at", { ascending: false })
+      .limit(6);
+    const recentTrackIds = (recentJobRows ?? [])
+      .map((row) => {
+        const props = row.props as { music?: { id?: string } } | null;
+        return props?.music?.id ?? null;
+      })
+      .filter((id): id is string => Boolean(id));
+    const music = pickTrackForReel({ pace: copy.pace, seed, recentTrackIds });
     const { data: refs } = await supabase
       .from("brand_references")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -944,7 +958,8 @@ export const renderNow = createServerFn({ method: "POST" })
         url: "",
         storagePath: music.storagePath,
         volume: 0.17,
-        startFrom: seed % 900,
+        // Never start past the end of the track (would render silence).
+        startFrom: Math.floor((seed % 1000) % Math.max(1, music.duration_s - 20)),
       },
       handle: brand.name ? `@${brand.name}` : null,
       brand: {
