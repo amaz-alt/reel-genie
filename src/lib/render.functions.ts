@@ -958,7 +958,8 @@ export const renderNow = createServerFn({ method: "POST" })
         url: "",
         storagePath: music.storagePath,
         volume: 0.17,
-        startFrom: seed % 900,
+        // Never start past the end of the track (would render silence).
+        startFrom: Math.floor((seed % 1000) % Math.max(1, music.duration_s - 20)),
       },
       handle: brand.name ? `@${brand.name}` : null,
       brand: {
