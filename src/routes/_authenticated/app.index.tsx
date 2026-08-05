@@ -68,7 +68,10 @@ function Dashboard() {
         </Link>
       </div>
 
+      <ScheduleCalendar />
+
       {brands.length === 0 ? (
+
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
             <div className="rounded-full bg-accent/10 p-3">
