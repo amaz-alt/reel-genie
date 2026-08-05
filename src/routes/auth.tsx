@@ -61,7 +61,14 @@ function AuthPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (mode === "signup") {
+      if (mode === "forgot") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin + "/reset-password",
+        });
+        if (error) throw error;
+        toast.success("Password reset link sent — check your email.");
+        setMode("signin");
+      } else if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -80,6 +87,7 @@ function AuthPage() {
       setLoading(false);
     }
   }
+
 
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-2">
