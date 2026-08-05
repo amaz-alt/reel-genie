@@ -31,7 +31,7 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -61,7 +61,14 @@ function AuthPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (mode === "signup") {
+      if (mode === "forgot") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin + "/reset-password",
+        });
+        if (error) throw error;
+        toast.success("Password reset link sent — check your email.");
+        setMode("signin");
+      } else if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -80,6 +87,7 @@ function AuthPage() {
       setLoading(false);
     }
   }
+
 
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-2">
@@ -102,29 +110,41 @@ function AuthPage() {
       <div className="flex items-center justify-center px-6 py-10">
         <div className="w-full max-w-sm">
           <h1 className="font-display text-3xl font-semibold">
-            {mode === "signin" ? "Welcome back" : "Create your workspace"}
+            {mode === "signin"
+              ? "Welcome back"
+              : mode === "signup"
+                ? "Create your workspace"
+                : "Reset your password"}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {mode === "signin"
               ? "Sign in to manage your brands and schedules."
-              : "Start with your first brand in under a minute."}
+              : mode === "signup"
+                ? "Start with your first brand in under a minute."
+                : "We'll email you a secure link to set a new password."}
           </p>
 
-          <Button
-            variant="outline"
-            className="mt-6 w-full"
-            onClick={handleGoogle}
-            disabled={loading}
-          >
-            {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-            Continue with Google
-          </Button>
+          {mode !== "forgot" ? (
+            <>
+              <Button
+                variant="outline"
+                className="mt-6 w-full"
+                onClick={handleGoogle}
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                Continue with Google
+              </Button>
 
-          <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
-            <div className="h-px flex-1 bg-border" />
-            or with email
-            <div className="h-px flex-1 bg-border" />
-          </div>
+              <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
+                <div className="h-px flex-1 bg-border" />
+                or with email
+                <div className="h-px flex-1 bg-border" />
+              </div>
+            </>
+          ) : (
+            <div className="my-6" />
+          )}
 
           <form onSubmit={handleEmail} className="space-y-3">
             <div>
@@ -138,21 +158,38 @@ function AuthPage() {
                 required
               />
             </div>
-            <div>
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                minLength={6}
-                required
-              />
-            </div>
+            {mode !== "forgot" ? (
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  {mode === "signin" ? (
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => setMode("forgot")}
+                    >
+                      Forgot password?
+                    </button>
+                  ) : null}
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  minLength={6}
+                  required
+                />
+              </div>
+            ) : null}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-              {mode === "signin" ? "Sign in" : "Create account"}
+              {mode === "signin"
+                ? "Sign in"
+                : mode === "signup"
+                  ? "Create account"
+                  : "Send reset link"}
             </Button>
           </form>
 
@@ -160,8 +197,13 @@ function AuthPage() {
             className="mt-4 w-full text-center text-sm text-muted-foreground hover:text-foreground"
             onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
           >
-            {mode === "signin" ? "Don't have an account? Create one" : "Already have an account? Sign in"}
+            {mode === "signin"
+              ? "Don't have an account? Create one"
+              : mode === "signup"
+                ? "Already have an account? Sign in"
+                : "Back to sign in"}
           </button>
+
         </div>
       </div>
     </div>
