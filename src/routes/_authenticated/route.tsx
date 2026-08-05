@@ -32,10 +32,14 @@ function AuthedLayout() {
           </Link>
           <div className="flex items-center gap-3 text-sm">
             <span className="hidden text-muted-foreground sm:inline">{user.email}</span>
+            <Link to="/app/account" className="text-muted-foreground hover:text-foreground">
+              Account
+            </Link>
             <Button variant="ghost" size="sm" onClick={signOut}>
               <LogOut className="mr-1.5 size-3.5" /> Sign out
             </Button>
           </div>
+
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-6 py-8">
