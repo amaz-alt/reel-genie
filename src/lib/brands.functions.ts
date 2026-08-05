@@ -14,7 +14,41 @@ export const listBrands = createServerFn({ method: "GET" })
     return data ?? [];
   });
 
-/* -------------------- get one brand + schedule + recent reels -------------------- */
+/* -------------------- schedule calendar (all brands) -------------------- */
+export const listScheduleCalendar = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: brands, error } = await context.supabase
+      .from("brands")
+      .select("id, name, brand_colors")
+      .order("name", { ascending: true });
+    if (error) throw new Error(error.message);
+
+    const ids = (brands ?? []).map((b) => b.id);
+    if (!ids.length) return [];
+
+    const { data: schedules } = await context.supabase
+      .from("brand_schedules")
+      .select("brand_id, days_of_week, time_of_day, timezone, active")
+      .in("brand_id", ids);
+
+    const byBrand = new Map((schedules ?? []).map((s) => [s.brand_id, s]));
+    return (brands ?? []).map((b) => {
+      const s = byBrand.get(b.id);
+      const colors = (b.brand_colors ?? {}) as { primary?: string; accent?: string };
+      return {
+        id: b.id,
+        name: b.name,
+        color: colors.accent || colors.primary || "#ff3b30",
+        days_of_week: s?.days_of_week ?? [],
+        time_of_day: s?.time_of_day ?? null,
+        timezone: s?.timezone ?? "UTC",
+        active: s?.active ?? false,
+      };
+    });
+  });
+
+
 export const getBrand = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
