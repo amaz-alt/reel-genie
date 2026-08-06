@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAppAuth } from "@/lib/app-auth-middleware";
 import { z } from "zod";
 import {
   OUTSTAND_API_BASE,
@@ -24,7 +24,7 @@ export type OutstandAccount = {
 
 /* -------------------- list accounts already connected in Outstand -------------------- */
 export const listOutstandAccounts = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .handler(async (): Promise<OutstandAccount[]> => {
     const apiKey = process.env.OUTSTAND_API_KEY;
     if (!apiKey) throw new Error("OUTSTAND_API_KEY is not configured");

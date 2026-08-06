@@ -92,8 +92,8 @@ function AuthPage() {
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-2">
       <div className="hidden flex-col justify-between bg-primary p-10 text-primary-foreground md:flex">
-        <Link to="/" className="flex items-center gap-2">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-accent" />
+        <Link to="/" className="flex items-center gap-2.5">
+          <img src="/reelforge-icon.png" alt="" width={30} height={30} className="size-[30px] rounded-md bg-primary-foreground" />
           <span className="font-display text-lg font-semibold">Reelforge</span>
         </Link>
         <div>

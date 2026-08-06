@@ -1,10 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAppAuth } from "@/lib/app-auth-middleware";
 import { z } from "zod";
 
 /* -------------------- list render jobs for a brand -------------------- */
 export const listRenderJobs = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) => z.object({ brand_id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { data: jobs, error } = await context.supabase
