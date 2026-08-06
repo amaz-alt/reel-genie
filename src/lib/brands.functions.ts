@@ -1,10 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAppAuth } from "@/lib/app-auth-middleware";
 import { z } from "zod";
 
 /* -------------------- list brands -------------------- */
 export const listBrands = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("brands")
@@ -16,7 +16,7 @@ export const listBrands = createServerFn({ method: "GET" })
 
 /* -------------------- schedule calendar (all brands) -------------------- */
 export const listScheduleCalendar = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .handler(async ({ context }) => {
     const { data: brands, error } = await context.supabase
       .from("brands")
@@ -50,7 +50,7 @@ export const listScheduleCalendar = createServerFn({ method: "GET" })
 
 
 export const getBrand = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { data: brand, error } = await context.supabase
@@ -112,7 +112,7 @@ function parseSheetId(url: string | undefined) {
 }
 
 export const createBrand = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) => brandInput.parse(data))
   .handler(async ({ data, context }) => {
     const { data: created, error } = await context.supabase
@@ -159,7 +159,7 @@ export const createBrand = createServerFn({ method: "POST" })
 
 /* -------------------- update brand -------------------- */
 export const updateBrand = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) =>
     brandInput.extend({ id: z.string().uuid() }).partial({ name: true }).parse(data),
   )
@@ -185,7 +185,7 @@ const scheduleInput = z.object({
 });
 
 export const updateSchedule = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) => scheduleInput.parse(data))
   .handler(async ({ data, context }) => {
     // ensure owner
@@ -228,7 +228,7 @@ export const updateSchedule = createServerFn({ method: "POST" })
 
 /* -------------------- delete brand -------------------- */
 export const deleteBrand = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from("brands").delete().eq("id", data.id);
@@ -238,7 +238,7 @@ export const deleteBrand = createServerFn({ method: "POST" })
 
 /* -------------------- signed upload URL for brand assets -------------------- */
 export const createBrandAssetUploadUrl = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) =>
     z
       .object({
@@ -259,7 +259,7 @@ export const createBrandAssetUploadUrl = createServerFn({ method: "POST" })
   });
 
 export const getBrandAssetSignedReadUrl = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) => z.object({ path: z.string() }).parse(data))
   .handler(async ({ data, context }) => {
     const { data: signed, error } = await context.supabase.storage
@@ -273,7 +273,7 @@ export const getBrandAssetSignedReadUrl = createServerFn({ method: "POST" })
 const MAX_REFERENCES = 15;
 
 export const listBrandReferences = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) => z.object({ brand_id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
@@ -340,7 +340,7 @@ async function visionAnalyzeReferenceFrames(frames: string[]): Promise<Record<st
 }
 
 export const addBrandReference = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) =>
     z
       .object({
@@ -380,7 +380,7 @@ export const addBrandReference = createServerFn({ method: "POST" })
  * analysis for references uploaded before vision support existed.
  */
 export const analyzeBrandReference = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) =>
     z.object({ id: z.string().uuid(), frames: z.array(z.string()).min(1).max(8) }).parse(data),
   )
@@ -399,7 +399,7 @@ export const analyzeBrandReference = createServerFn({ method: "POST" })
 
 
 export const deleteBrandReference = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { data: row } = await context.supabase

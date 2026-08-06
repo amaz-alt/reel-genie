@@ -26,8 +26,8 @@ function AuthedLayout() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link to="/app" className="flex items-center gap-2">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-accent" />
+          <Link to="/app" className="flex items-center gap-2.5">
+            <img src="/reelforge-icon.png" alt="" width={28} height={28} className="size-7 rounded-md" />
             <span className="font-display text-lg font-semibold">Reelforge</span>
           </Link>
           <div className="flex items-center gap-3 text-sm">

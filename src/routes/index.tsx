@@ -25,8 +25,8 @@ function Landing() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-        <Link to="/" className="flex items-center gap-2">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-accent" />
+        <Link to="/" className="flex items-center gap-2.5">
+          <img src="/reelforge-icon.png" alt="" width={30} height={30} className="size-[30px] rounded-md" />
           <span className="font-display text-lg font-semibold">Reelforge</span>
         </Link>
         <nav className="flex items-center gap-3 text-sm">
