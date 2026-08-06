@@ -33,7 +33,7 @@ export const listOutstandAccounts = createServerFn({ method: "GET" })
 
 /* -------------------- list accounts linked to this brand -------------------- */
 export const listBrandSocialAccounts = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) => z.object({ brand_id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
@@ -56,7 +56,7 @@ export const listBrandSocialAccounts = createServerFn({ method: "GET" })
 
 /* -------------------- save selected accounts for a brand (replace set) -------------------- */
 export const setBrandOutstandAccounts = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) =>
     z
       .object({
@@ -115,7 +115,7 @@ export const setBrandOutstandAccounts = createServerFn({ method: "POST" })
 /* -------------------- publish a rendered reel to selected accounts -------------------- */
 
 export const publishReel = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) => z.object({ reel_id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const apiKey = process.env.OUTSTAND_API_KEY;

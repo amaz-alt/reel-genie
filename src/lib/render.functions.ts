@@ -786,7 +786,7 @@ const MOTION_VARIANTS = ["stagger", "cascade", "bounce", "mask", "shuffle", "swi
  * brand's knowledge base — callers no longer supply the hook.
  */
 export const renderNow = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) =>
     z
       .object({

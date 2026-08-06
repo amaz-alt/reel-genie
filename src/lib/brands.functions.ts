@@ -399,7 +399,7 @@ export const analyzeBrandReference = createServerFn({ method: "POST" })
 
 
 export const deleteBrandReference = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { data: row } = await context.supabase
