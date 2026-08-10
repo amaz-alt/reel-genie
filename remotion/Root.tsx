@@ -6,6 +6,7 @@ import { KineticType } from "./compositions/kinetic-type";
 import { ProductShowcase } from "./compositions/product-showcase";
 import { QuoteCard } from "./compositions/quote-card";
 import { BeforeAfter } from "./compositions/before-after";
+import { ReactionDemo, type ReactionDemoProps } from "./compositions/reaction-demo";
 import { DEFAULT_BRAND, type ReelProps, type Beat } from "./brand";
 
 const demoScript: Beat[] = [
