@@ -253,6 +253,160 @@ export type Database = {
         }
         Relationships: []
       }
+      reaction_assets: {
+        Row: {
+          ai_tags: Json
+          brand_id: string
+          created_at: string
+          duration_seconds: number | null
+          height: number | null
+          id: string
+          kind: string
+          label: string | null
+          last_used_at: string | null
+          owner_id: string
+          storage_path: string
+          updated_at: string
+          use_count: number
+          width: number | null
+        }
+        Insert: {
+          ai_tags?: Json
+          brand_id: string
+          created_at?: string
+          duration_seconds?: number | null
+          height?: number | null
+          id?: string
+          kind: string
+          label?: string | null
+          last_used_at?: string | null
+          owner_id: string
+          storage_path: string
+          updated_at?: string
+          use_count?: number
+          width?: number | null
+        }
+        Update: {
+          ai_tags?: Json
+          brand_id?: string
+          created_at?: string
+          duration_seconds?: number | null
+          height?: number | null
+          id?: string
+          kind?: string
+          label?: string | null
+          last_used_at?: string | null
+          owner_id?: string
+          storage_path?: string
+          updated_at?: string
+          use_count?: number
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reaction_assets_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reaction_reels: {
+        Row: {
+          arrangement: string | null
+          brand_id: string
+          caption: string | null
+          created_at: string
+          demo_asset_id: string | null
+          error: string | null
+          hashtags: string[]
+          hook: string | null
+          id: string
+          outstand_post_ids: Json
+          owner_id: string
+          plan: Json
+          published_at: string | null
+          reaction_asset_id: string | null
+          render_job_id: string | null
+          status: string
+          storage_path: string | null
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          arrangement?: string | null
+          brand_id: string
+          caption?: string | null
+          created_at?: string
+          demo_asset_id?: string | null
+          error?: string | null
+          hashtags?: string[]
+          hook?: string | null
+          id?: string
+          outstand_post_ids?: Json
+          owner_id: string
+          plan?: Json
+          published_at?: string | null
+          reaction_asset_id?: string | null
+          render_job_id?: string | null
+          status?: string
+          storage_path?: string | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          arrangement?: string | null
+          brand_id?: string
+          caption?: string | null
+          created_at?: string
+          demo_asset_id?: string | null
+          error?: string | null
+          hashtags?: string[]
+          hook?: string | null
+          id?: string
+          outstand_post_ids?: Json
+          owner_id?: string
+          plan?: Json
+          published_at?: string | null
+          reaction_asset_id?: string | null
+          render_job_id?: string | null
+          status?: string
+          storage_path?: string | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reaction_reels_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reaction_reels_demo_asset_id_fkey"
+            columns: ["demo_asset_id"]
+            isOneToOne: false
+            referencedRelation: "reaction_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reaction_reels_reaction_asset_id_fkey"
+            columns: ["reaction_asset_id"]
+            isOneToOne: false
+            referencedRelation: "reaction_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reaction_reels_render_job_id_fkey"
+            columns: ["render_job_id"]
+            isOneToOne: false
+            referencedRelation: "render_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reels: {
         Row: {
           brand_id: string
