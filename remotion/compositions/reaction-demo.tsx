@@ -157,6 +157,14 @@ export const ReactionDemo: React.FC<ReactionDemoProps> = ({
   const showOnReaction = hookPlacement === "reaction" || hookPlacement === "both";
   const showOnDemo = hookPlacement === "demo" || hookPlacement === "both";
 
+  const Music = music?.url ? (
+    <Audio
+      src={music.url}
+      volume={music.volume ?? 0.16}
+      startFrom={music.startFrom ? Math.round(music.startFrom * fps) : 0}
+    />
+  ) : null;
+
   const Handle = handle ? (
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", padding: 56 }}>
       <div
@@ -196,6 +204,7 @@ export const ReactionDemo: React.FC<ReactionDemoProps> = ({
         </Sequence>
         <HookText text={hook} brand={brand} style={textStyle} delayFrames={delayFor(0)} anchor="bottom" />
         {Handle}
+        {Music}
       </AbsoluteFill>
     );
   }
@@ -211,6 +220,7 @@ export const ReactionDemo: React.FC<ReactionDemoProps> = ({
         </div>
         <HookText text={hook} brand={brand} style={textStyle} delayFrames={delayFor(0)} anchor="center" />
         {Handle}
+        {Music}
       </AbsoluteFill>
     );
   }
@@ -253,13 +263,7 @@ export const ReactionDemo: React.FC<ReactionDemoProps> = ({
           {Handle}
         </AbsoluteFill>
       </Sequence>
-      {music?.url ? (
-        <Audio
-          src={music.url}
-          volume={music.volume ?? 0.16}
-          startFrom={music.startFrom ? Math.round(music.startFrom * fps) : 0}
-        />
-      ) : null}
+      {Music}
     </AbsoluteFill>
   );
 };
