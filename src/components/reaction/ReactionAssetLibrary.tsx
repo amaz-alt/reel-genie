@@ -3,7 +3,7 @@
  * the typography reels screens.
  */
 import { useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,6 @@ import {
   deleteReactionAsset,
   getReactionAssetUrl,
   listReactionAssets,
-  retagReactionAsset,
   updateReactionAssetLabel,
 } from "@/lib/reaction.functions";
 import type { AssetTags } from "@/lib/reaction/pairing";
@@ -165,7 +164,6 @@ const KindPanel: React.FC<{
 }> = ({ brandId, kind, rows, refetch }) => {
   const createUrl = useServerFn(createReactionAssetUploadUrl);
   const addAsset = useServerFn(addReactionAsset);
-  const retag = useServerFn(retagReactionAsset);
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -253,17 +251,6 @@ const KindPanel: React.FC<{
           {rows.length} clip{rows.length === 1 ? "" : "s"}
           {untagged.length ? ` · ${untagged.length} untagged` : ""}
         </span>
-        {untagged.length ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={async () => {
-              toast.info("Re-tagging needs the original file — re-upload untagged clips to tag them.");
-            }}
-          >
-            Why untagged?
-          </Button>
-        ) : null}
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((row) => (
@@ -282,8 +269,6 @@ const KindPanel: React.FC<{
           </p>
         ) : null}
       </div>
-      {/* retag is wired for future single-clip re-analysis */}
-      <span className="hidden">{typeof retag}</span>
     </div>
   );
 };
@@ -320,6 +305,3 @@ export const ReactionAssetLibrary: React.FC<{ brandId: string }> = ({ brandId })
     </Card>
   );
 };
-
-/** Unused mutation helper kept out of the component tree. */
-export const _unusedMutation = useMutation;

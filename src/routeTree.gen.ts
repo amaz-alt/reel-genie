@@ -20,6 +20,7 @@ import { Route as ApiPublicRenderHealthRouteImport } from './routes/api/public/r
 import { Route as ApiPublicRenderCallbackRouteImport } from './routes/api/public/render/callback'
 import { Route as AuthenticatedAppBrandsNewRouteImport } from './routes/_authenticated/app.brands.new'
 import { Route as AuthenticatedAppBrandsBrandIdRouteImport } from './routes/_authenticated/app.brands.$brandId'
+import { Route as AuthenticatedAppBrandsBrandIdReactionsRouteImport } from './routes/_authenticated/app.brands.$brandId.reactions'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -77,6 +78,12 @@ const AuthenticatedAppBrandsBrandIdRoute =
     path: '/brands/$brandId',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppBrandsBrandIdReactionsRoute =
+  AuthenticatedAppBrandsBrandIdReactionsRouteImport.update({
+    id: '/reactions',
+    path: '/reactions',
+    getParentRoute: () => AuthenticatedAppBrandsBrandIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -85,10 +92,11 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/app/account': typeof AuthenticatedAppAccountRoute
   '/app/': typeof AuthenticatedAppIndexRoute
-  '/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRoute
+  '/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRouteWithChildren
   '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
   '/api/public/render/health': typeof ApiPublicRenderHealthRoute
+  '/app/brands/$brandId/reactions': typeof AuthenticatedAppBrandsBrandIdReactionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -96,10 +104,11 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/app/account': typeof AuthenticatedAppAccountRoute
   '/app': typeof AuthenticatedAppIndexRoute
-  '/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRoute
+  '/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRouteWithChildren
   '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
   '/api/public/render/health': typeof ApiPublicRenderHealthRoute
+  '/app/brands/$brandId/reactions': typeof AuthenticatedAppBrandsBrandIdReactionsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -110,10 +119,11 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/app/account': typeof AuthenticatedAppAccountRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
-  '/_authenticated/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRoute
+  '/_authenticated/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRouteWithChildren
   '/_authenticated/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
   '/api/public/render/health': typeof ApiPublicRenderHealthRoute
+  '/_authenticated/app/brands/$brandId/reactions': typeof AuthenticatedAppBrandsBrandIdReactionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/app/brands/new'
     | '/api/public/render/callback'
     | '/api/public/render/health'
+    | '/app/brands/$brandId/reactions'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/app/brands/new'
     | '/api/public/render/callback'
     | '/api/public/render/health'
+    | '/app/brands/$brandId/reactions'
   id:
     | '__root__'
     | '/'
@@ -152,6 +164,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/brands/new'
     | '/api/public/render/callback'
     | '/api/public/render/health'
+    | '/_authenticated/app/brands/$brandId/reactions'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -242,20 +255,43 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppBrandsBrandIdRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/brands/$brandId/reactions': {
+      id: '/_authenticated/app/brands/$brandId/reactions'
+      path: '/reactions'
+      fullPath: '/app/brands/$brandId/reactions'
+      preLoaderRoute: typeof AuthenticatedAppBrandsBrandIdReactionsRouteImport
+      parentRoute: typeof AuthenticatedAppBrandsBrandIdRoute
+    }
   }
 }
+
+interface AuthenticatedAppBrandsBrandIdRouteChildren {
+  AuthenticatedAppBrandsBrandIdReactionsRoute: typeof AuthenticatedAppBrandsBrandIdReactionsRoute
+}
+
+const AuthenticatedAppBrandsBrandIdRouteChildren: AuthenticatedAppBrandsBrandIdRouteChildren =
+  {
+    AuthenticatedAppBrandsBrandIdReactionsRoute:
+      AuthenticatedAppBrandsBrandIdReactionsRoute,
+  }
+
+const AuthenticatedAppBrandsBrandIdRouteWithChildren =
+  AuthenticatedAppBrandsBrandIdRoute._addFileChildren(
+    AuthenticatedAppBrandsBrandIdRouteChildren,
+  )
 
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppAccountRoute: typeof AuthenticatedAppAccountRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
-  AuthenticatedAppBrandsBrandIdRoute: typeof AuthenticatedAppBrandsBrandIdRoute
+  AuthenticatedAppBrandsBrandIdRoute: typeof AuthenticatedAppBrandsBrandIdRouteWithChildren
   AuthenticatedAppBrandsNewRoute: typeof AuthenticatedAppBrandsNewRoute
 }
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppAccountRoute: AuthenticatedAppAccountRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
-  AuthenticatedAppBrandsBrandIdRoute: AuthenticatedAppBrandsBrandIdRoute,
+  AuthenticatedAppBrandsBrandIdRoute:
+    AuthenticatedAppBrandsBrandIdRouteWithChildren,
   AuthenticatedAppBrandsNewRoute: AuthenticatedAppBrandsNewRoute,
 }
 
@@ -284,13 +320,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
