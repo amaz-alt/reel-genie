@@ -271,6 +271,11 @@ function BrandDetail() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button asChild variant="secondary">
+            <Link to="/app/brands/$brandId/reactions" params={{ brandId }}>
+              Reaction + Demo Reels
+            </Link>
+          </Button>
           <Button
             variant="outline"
             onClick={() => {
