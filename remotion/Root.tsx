@@ -31,6 +31,25 @@ const defaultProps: ReelProps = {
 
 const base = { width: 1080, height: 1920, fps: 30, durationInFrames: 600 } as const;
 
+/**
+ * Reaction + Demo module — standalone format, separate props shape. Registered
+ * here only so the worker can resolve the composition id; it shares nothing
+ * with the typography templates above.
+ */
+const reactionDemoDefaults: ReactionDemoProps = {
+  hook: "I wish I found this 3 years ago.",
+  brand: DEFAULT_BRAND,
+  handle: null,
+  reaction: { url: "" },
+  demo: { url: "" },
+  reactionSeconds: 2.4,
+  demoSeconds: 6,
+  arrangement: "reaction-cut",
+  textStyle: "caption-bar",
+  hookPlacement: "both",
+  hookTiming: "on-beat",
+};
+
 export const RemotionRoot: React.FC = () => (
   <>
     <Composition id="motion-poster" component={MotionPoster} defaultProps={defaultProps} {...base} />
@@ -40,5 +59,12 @@ export const RemotionRoot: React.FC = () => (
     <Composition id="product-showcase" component={ProductShowcase} defaultProps={defaultProps} {...base} />
     <Composition id="quote-card" component={QuoteCard} defaultProps={defaultProps} {...base} />
     <Composition id="before-after" component={BeforeAfter} defaultProps={defaultProps} {...base} />
+    <Composition
+      id="reaction-demo"
+      component={ReactionDemo}
+      defaultProps={reactionDemoDefaults}
+      {...base}
+      durationInFrames={270}
+    />
   </>
 );
