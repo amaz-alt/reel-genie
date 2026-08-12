@@ -127,27 +127,33 @@ export function ScheduleCalendar() {
             return (
               <div
                 key={c.day}
-                className={`relative min-h-[5.75rem] border-r border-b border-border/50 p-1.5 text-left transition-colors ${
+                className={`group/cell relative min-h-[6.25rem] border-r border-b border-border/50 p-1.5 text-left transition-all ${
                   isToday
-                    ? "bg-accent/5 ring-1 ring-accent ring-inset"
+                    ? "bg-accent/[0.07] ring-2 ring-accent/70 ring-inset"
                     : weekend
-                      ? "bg-muted/20"
+                      ? "bg-muted/25"
                       : "bg-card"
-                } ${isPast && !isToday ? "opacity-55" : ""} hover:bg-secondary/50`}
+                } ${isPast && !isToday ? "opacity-50" : ""} hover:z-10 hover:bg-secondary/50 hover:shadow-[inset_0_0_0_1px_hsl(var(--border))]`}
               >
                 <div className="mb-1 flex items-center justify-between">
                   <span
-                    className={`grid size-5 place-items-center rounded-full text-[11px] font-semibold ${
+                    className={`grid size-5.5 place-items-center rounded-full text-[11px] font-semibold transition-colors ${
                       isToday
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground"
+                        ? "bg-accent text-accent-foreground shadow-sm"
+                        : "text-muted-foreground group-hover/cell:text-foreground"
                     }`}
                   >
                     {c.day}
                   </span>
                   {due.length > 0 ? (
-                    <span className="text-[9px] font-medium text-muted-foreground">
-                      {due.length}
+                    <span className="flex items-center gap-0.5">
+                      {due.slice(0, 4).map((b) => (
+                        <span
+                          key={`dot-${b.id}`}
+                          className="size-1.5 rounded-full"
+                          style={{ background: b.color }}
+                        />
+                      ))}
                     </span>
                   ) : null}
                 </div>
@@ -157,8 +163,11 @@ export function ScheduleCalendar() {
                       key={b.id}
                       to="/app/brands/$brandId"
                       params={{ brandId: b.id }}
-                      className="group flex items-center gap-1.5 truncate rounded-md border-l-2 bg-secondary/70 px-1.5 py-1 text-[10px] leading-tight font-medium hover:bg-secondary"
-                      style={{ borderLeftColor: b.color }}
+                      className="group flex items-center gap-1.5 truncate rounded-md border-l-[3px] px-1.5 py-1 text-[10px] leading-tight font-medium transition-transform hover:translate-x-0.5"
+                      style={{
+                        borderLeftColor: b.color,
+                        background: `color-mix(in oklab, ${b.color} 14%, transparent)`,
+                      }}
                       title={`${b.name} — ${fmtTime(b.time_of_day)} ${b.timezone}`}
                     >
                       <span className="truncate">{b.name}</span>
