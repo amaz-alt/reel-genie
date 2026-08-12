@@ -6,7 +6,7 @@ import { getBrand } from "@/lib/brands.functions";
 import { ReactionAssetLibrary } from "@/components/reaction/ReactionAssetLibrary";
 import { ReactionReelsPanel } from "@/components/reaction/ReactionReelsPanel";
 
-export const Route = createFileRoute("/_authenticated/app/brands/$brandId/reactions")({
+export const Route = createFileRoute("/_authenticated/app/brands/$brandId_/reactions")({
   component: ReactionsPage,
   head: () => ({
     meta: [
