@@ -62,7 +62,7 @@ export function ScheduleCalendar() {
 
   return (
     <Card className="mb-10 overflow-hidden border-border/70 shadow-sm">
-      <CardHeader className="gap-4 border-b border-border/70 bg-secondary/40 pb-4 sm:flex-row sm:items-center sm:justify-between">
+      <CardHeader className="gap-4 border-b border-border/70 bg-gradient-to-r from-secondary/60 via-secondary/30 to-transparent pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <CardTitle className="flex items-center gap-2 font-display text-xl">
             <span className="rounded-lg bg-accent/10 p-1.5">
