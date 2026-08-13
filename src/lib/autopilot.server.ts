@@ -12,7 +12,7 @@
 
 import { generateReelCore } from "@/lib/render.functions";
 import { publishReelCore } from "@/lib/outstand.functions";
-import { ensureFolder, extractDriveFolderId, uploadMp4 } from "@/lib/google-drive.server";
+import { ensureFolder, uploadMp4 } from "@/lib/google-drive.server";
 
 type Sb = ReturnType<typeof unusedTypeHelper>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
