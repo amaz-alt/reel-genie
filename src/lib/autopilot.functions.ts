@@ -46,7 +46,13 @@ export const saveAutopilotSettings = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { extractDriveFolderId } = await import("@/lib/google-drive.server");
-    const patch: Record<string, unknown> = { owner_id: context.userId, updated_at: new Date().toISOString() };
+    const patch: {
+      owner_id: string;
+      updated_at: string;
+      drive_parent_folder_id?: string | null;
+      drive_parent_url?: string | null;
+      drive_enabled?: boolean;
+    } = { owner_id: context.userId, updated_at: new Date().toISOString() };
 
     if (data.drive_folder_link !== undefined) {
       const link = data.drive_folder_link.trim();
