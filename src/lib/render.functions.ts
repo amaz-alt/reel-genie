@@ -808,8 +808,19 @@ export const renderNow = createServerFn({ method: "POST" })
       })
       .parse(data),
   )
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+  .handler(async ({ data, context }) => generateReelCore(context.supabase, context.userId, data));
+
+/**
+ * Core generation pipeline. Extracted so the autopilot cron can run it with a
+ * service-role client and the brand owner's id (no user session available).
+ */
+export async function generateReelCore(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+  data: { brand_id: string; hook?: string; caption?: string; template_id?: string },
+) {
+
 
     const { data: brand, error: brandErr } = await supabase
       .from("brands")
