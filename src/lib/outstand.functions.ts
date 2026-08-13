@@ -117,15 +117,22 @@ export const setBrandOutstandAccounts = createServerFn({ method: "POST" })
 export const publishReel = createServerFn({ method: "POST" })
   .middleware([requireAppAuth])
   .inputValidator((data: unknown) => z.object({ reel_id: z.string().uuid() }).parse(data))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data, context }) => publishReelCore(context.supabase, data.reel_id));
+
+/**
+ * Core publish pipeline. Extracted so the autopilot cron can publish with a
+ * service-role client (no user session).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function publishReelCore(sb: any, reelId: string) {
     const apiKey = process.env.OUTSTAND_API_KEY;
     if (!apiKey) throw new Error("OUTSTAND_API_KEY is not configured");
 
-    const { data: reel, error: reelErr } = await context.supabase
+    const { data: reel, error: reelErr } = await sb
       .from("reels")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .select("id, brand_id, hook, caption, hashtags, video_url, status, product_snapshot, outstand_post_ids" as any)
-      .eq("id", data.reel_id)
+      .eq("id", reelId)
       .maybeSingle();
     if (reelErr) throw new Error(reelErr.message);
     if (!reel) throw new Error("Reel not found");
@@ -168,7 +175,7 @@ export const publishReel = createServerFn({ method: "POST" })
       return { ok: anyOk, allOk, pending: anyPending, results: refreshResults };
     }
 
-    const { data: accountsRaw, error: accErr } = await context.supabase
+    const { data: accountsRaw, error: accErr } = await sb
       .from("brand_social_accounts")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .select("outstand_account_id, network, pinterest_board_id" as any)
@@ -391,4 +398,4 @@ export const publishReel = createServerFn({ method: "POST" })
       .eq("id", r.id);
 
     return { ok: anyOk, allOk, pending: anyPending, results };
-  });
+}
