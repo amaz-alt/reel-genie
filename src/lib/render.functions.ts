@@ -1035,7 +1035,7 @@ export async function generateReelCore(
     });
 
     return { reel_id: reel.id, job_id: job.id, hook: copy.hook, duration_seconds: durationSeconds, template_id: templateId };
-  });
+}
 
 /**
  * Idempotent claim + dispatch. Uses a conditional UPDATE so re-entrant calls
