@@ -841,7 +841,7 @@ export async function generateReelCore(
       .eq("brand_id", brand.id)
       .order("created_at", { ascending: false })
       .limit(6);
-    const recentTemplates = (recentTemplateRows ?? []).map((row) => String(row.template_id));
+    const recentTemplates = (recentTemplateRows ?? []).map((row: { template_id: string }) => String(row.template_id));
     let templateId: LockedTemplateId;
     if (isLockedTemplateId(requestedTemplate)) {
       templateId = requestedTemplate;
@@ -920,11 +920,11 @@ export async function generateReelCore(
       .order("created_at", { ascending: false })
       .limit(6);
     const recentTrackIds = (recentJobRows ?? [])
-      .map((row) => {
+      .map((row: { props: unknown }) => {
         const props = row.props as { music?: { id?: string } } | null;
         return props?.music?.id ?? null;
       })
-      .filter((id): id is string => Boolean(id));
+      .filter((id: string | null): id is string => Boolean(id));
     const music = pickTrackForReel({ pace: copy.pace, seed, recentTrackIds });
     const { data: refs } = await supabase
       .from("brand_references")
