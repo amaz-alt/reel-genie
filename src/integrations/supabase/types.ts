@@ -14,6 +14,74 @@ export type Database = {
   }
   public: {
     Tables: {
+      autopilot_runs: {
+        Row: {
+          brand_id: string | null
+          created_at: string
+          id: string
+          message: string | null
+          owner_id: string
+          reel_id: string | null
+          stage: string
+          status: string
+        }
+        Insert: {
+          brand_id?: string | null
+          created_at?: string
+          id?: string
+          message?: string | null
+          owner_id: string
+          reel_id?: string | null
+          stage: string
+          status: string
+        }
+        Update: {
+          brand_id?: string | null
+          created_at?: string
+          id?: string
+          message?: string | null
+          owner_id?: string
+          reel_id?: string | null
+          stage?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "autopilot_runs_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      autopilot_settings: {
+        Row: {
+          created_at: string
+          drive_enabled: boolean
+          drive_parent_folder_id: string | null
+          drive_parent_url: string | null
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          drive_enabled?: boolean
+          drive_parent_folder_id?: string | null
+          drive_parent_url?: string | null
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          drive_enabled?: boolean
+          drive_parent_folder_id?: string | null
+          drive_parent_url?: string | null
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       brand_references: {
         Row: {
           analysis: Json | null
@@ -58,30 +126,42 @@ export type Database = {
       brand_schedules: {
         Row: {
           active: boolean
+          auto_publish: boolean
+          autopilot_enabled: boolean
           brand_id: string
           created_at: string
           days_of_week: number[]
           id: string
+          last_run_at: string | null
+          posts_per_day: number
           time_of_day: string
           timezone: string
           updated_at: string
         }
         Insert: {
           active?: boolean
+          auto_publish?: boolean
+          autopilot_enabled?: boolean
           brand_id: string
           created_at?: string
           days_of_week?: number[]
           id?: string
+          last_run_at?: string | null
+          posts_per_day?: number
           time_of_day?: string
           timezone?: string
           updated_at?: string
         }
         Update: {
           active?: boolean
+          auto_publish?: boolean
+          autopilot_enabled?: boolean
           brand_id?: string
           created_at?: string
           days_of_week?: number[]
           id?: string
+          last_run_at?: string | null
+          posts_per_day?: number
           time_of_day?: string
           timezone?: string
           updated_at?: string
@@ -151,6 +231,7 @@ export type Database = {
           brand_colors: Json
           brand_fonts: Json
           created_at: string
+          drive_folder_id: string | null
           google_sheet_id: string | null
           google_sheet_url: string | null
           id: string
@@ -169,6 +250,7 @@ export type Database = {
           brand_colors?: Json
           brand_fonts?: Json
           created_at?: string
+          drive_folder_id?: string | null
           google_sheet_id?: string | null
           google_sheet_url?: string | null
           id?: string
@@ -187,6 +269,7 @@ export type Database = {
           brand_colors?: Json
           brand_fonts?: Json
           created_at?: string
+          drive_folder_id?: string | null
           google_sheet_id?: string | null
           google_sheet_url?: string | null
           id?: string
@@ -412,6 +495,9 @@ export type Database = {
           brand_id: string
           caption: string | null
           created_at: string
+          drive_file_id: string | null
+          drive_synced_at: string | null
+          drive_url: string | null
           error: string | null
           hashtags: string[] | null
           hook: string | null
@@ -432,6 +518,9 @@ export type Database = {
           brand_id: string
           caption?: string | null
           created_at?: string
+          drive_file_id?: string | null
+          drive_synced_at?: string | null
+          drive_url?: string | null
           error?: string | null
           hashtags?: string[] | null
           hook?: string | null
@@ -452,6 +541,9 @@ export type Database = {
           brand_id?: string
           caption?: string | null
           created_at?: string
+          drive_file_id?: string | null
+          drive_synced_at?: string | null
+          drive_url?: string | null
           error?: string | null
           hashtags?: string[] | null
           hook?: string | null
