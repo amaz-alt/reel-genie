@@ -18,6 +18,7 @@ import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppAccountRouteImport } from './routes/_authenticated/app.account'
 import { Route as ApiPublicRenderHealthRouteImport } from './routes/api/public/render/health'
 import { Route as ApiPublicRenderCallbackRouteImport } from './routes/api/public/render/callback'
+import { Route as ApiPublicAutopilotTickRouteImport } from './routes/api/public/autopilot/tick'
 import { Route as AuthenticatedAppBrandsNewRouteImport } from './routes/_authenticated/app.brands.new'
 import { Route as AuthenticatedAppBrandsBrandIdRouteImport } from './routes/_authenticated/app.brands.$brandId'
 import { Route as AuthenticatedAppBrandsBrandIdReactionsRouteImport } from './routes/_authenticated/app.brands.$brandId_.reactions'
@@ -66,6 +67,11 @@ const ApiPublicRenderCallbackRoute = ApiPublicRenderCallbackRouteImport.update({
   path: '/api/public/render/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAutopilotTickRoute = ApiPublicAutopilotTickRouteImport.update({
+  id: '/api/public/autopilot/tick',
+  path: '/api/public/autopilot/tick',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAppBrandsNewRoute =
   AuthenticatedAppBrandsNewRouteImport.update({
     id: '/brands/new',
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRoute
   '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
+  '/api/public/autopilot/tick': typeof ApiPublicAutopilotTickRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
   '/api/public/render/health': typeof ApiPublicRenderHealthRoute
   '/app/brands/$brandId/reactions': typeof AuthenticatedAppBrandsBrandIdReactionsRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRoute
   '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
+  '/api/public/autopilot/tick': typeof ApiPublicAutopilotTickRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
   '/api/public/render/health': typeof ApiPublicRenderHealthRoute
   '/app/brands/$brandId/reactions': typeof AuthenticatedAppBrandsBrandIdReactionsRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/brands/$brandId': typeof AuthenticatedAppBrandsBrandIdRoute
   '/_authenticated/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
+  '/api/public/autopilot/tick': typeof ApiPublicAutopilotTickRoute
   '/api/public/render/callback': typeof ApiPublicRenderCallbackRoute
   '/api/public/render/health': typeof ApiPublicRenderHealthRoute
   '/_authenticated/app/brands/$brandId_/reactions': typeof AuthenticatedAppBrandsBrandIdReactionsRoute
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/brands/$brandId'
     | '/app/brands/new'
+    | '/api/public/autopilot/tick'
     | '/api/public/render/callback'
     | '/api/public/render/health'
     | '/app/brands/$brandId/reactions'
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/app/brands/$brandId'
     | '/app/brands/new'
+    | '/api/public/autopilot/tick'
     | '/api/public/render/callback'
     | '/api/public/render/health'
     | '/app/brands/$brandId/reactions'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/'
     | '/_authenticated/app/brands/$brandId'
     | '/_authenticated/app/brands/new'
+    | '/api/public/autopilot/tick'
     | '/api/public/render/callback'
     | '/api/public/render/health'
     | '/_authenticated/app/brands/$brandId_/reactions'
@@ -172,6 +184,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiPublicAutopilotTickRoute: typeof ApiPublicAutopilotTickRoute
   ApiPublicRenderCallbackRoute: typeof ApiPublicRenderCallbackRoute
   ApiPublicRenderHealthRoute: typeof ApiPublicRenderHealthRoute
 }
@@ -241,6 +254,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicRenderCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/autopilot/tick': {
+      id: '/api/public/autopilot/tick'
+      path: '/api/public/autopilot/tick'
+      fullPath: '/api/public/autopilot/tick'
+      preLoaderRoute: typeof ApiPublicAutopilotTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/app/brands/new': {
       id: '/_authenticated/app/brands/new'
       path: '/brands/new'
@@ -301,6 +321,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiPublicAutopilotTickRoute: ApiPublicAutopilotTickRoute,
   ApiPublicRenderCallbackRoute: ApiPublicRenderCallbackRoute,
   ApiPublicRenderHealthRoute: ApiPublicRenderHealthRoute,
 }
