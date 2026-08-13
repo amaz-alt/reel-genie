@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { ScheduleCalendar } from "@/components/ScheduleCalendar";
+import { AutopilotPanel } from "@/components/AutopilotPanel";
 
 
 const brandsQuery = queryOptions({
@@ -67,6 +68,8 @@ function Dashboard() {
           </Button>
         </Link>
       </div>
+
+      <AutopilotPanel />
 
       <ScheduleCalendar />
 

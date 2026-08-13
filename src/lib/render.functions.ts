@@ -808,8 +808,19 @@ export const renderNow = createServerFn({ method: "POST" })
       })
       .parse(data),
   )
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+  .handler(async ({ data, context }) => generateReelCore(context.supabase, context.userId, data));
+
+/**
+ * Core generation pipeline. Extracted so the autopilot cron can run it with a
+ * service-role client and the brand owner's id (no user session available).
+ */
+export async function generateReelCore(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+  data: { brand_id: string; hook?: string; caption?: string; template_id?: string },
+) {
+
 
     const { data: brand, error: brandErr } = await supabase
       .from("brands")
@@ -830,7 +841,7 @@ export const renderNow = createServerFn({ method: "POST" })
       .eq("brand_id", brand.id)
       .order("created_at", { ascending: false })
       .limit(6);
-    const recentTemplates = (recentTemplateRows ?? []).map((row) => String(row.template_id));
+    const recentTemplates = (recentTemplateRows ?? []).map((row: { template_id: string }) => String(row.template_id));
     let templateId: LockedTemplateId;
     if (isLockedTemplateId(requestedTemplate)) {
       templateId = requestedTemplate;
@@ -909,11 +920,11 @@ export const renderNow = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false })
       .limit(6);
     const recentTrackIds = (recentJobRows ?? [])
-      .map((row) => {
+      .map((row: { props: unknown }) => {
         const props = row.props as { music?: { id?: string } } | null;
         return props?.music?.id ?? null;
       })
-      .filter((id): id is string => Boolean(id));
+      .filter((id: string | null): id is string => Boolean(id));
     const music = pickTrackForReel({ pace: copy.pace, seed, recentTrackIds });
     const { data: refs } = await supabase
       .from("brand_references")
@@ -1024,7 +1035,7 @@ export const renderNow = createServerFn({ method: "POST" })
     });
 
     return { reel_id: reel.id, job_id: job.id, hook: copy.hook, duration_seconds: durationSeconds, template_id: templateId };
-  });
+}
 
 /**
  * Idempotent claim + dispatch. Uses a conditional UPDATE so re-entrant calls
