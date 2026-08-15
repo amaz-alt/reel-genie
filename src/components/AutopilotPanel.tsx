@@ -160,25 +160,87 @@ export function AutopilotPanel() {
                 )}
                 {brands.map((b) => {
                   const s = scheduleByBrand.get(b.id);
+                  const days: number[] = (s?.days_of_week as number[] | undefined) ?? [];
+                  const toggleDay = (d: number) => {
+                    if (!s) return;
+                    const next = days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort();
+                    toggleBrand.mutate({ brand_id: b.id, days_of_week: next });
+                  };
                   return (
-                    <div
-                      key={b.id}
-                      className="flex flex-wrap items-center justify-between gap-3 p-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{b.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {s
-                            ? `${s.active ? "Schedule active" : "Schedule paused"} · ${s.time_of_day?.slice(0, 5) ?? "--:--"} ${s.timezone ?? ""}`
-                            : "No schedule set"}
-                          {s?.last_run_at
-                            ? ` · last run ${new Date(s.last_run_at).toLocaleString()}`
-                            : ""}
-                        </p>
+                    <div key={b.id} className="space-y-2.5 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{b.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {s
+                              ? `${s.active ? "Schedule active" : "Schedule paused"} · ${s.time_of_day?.slice(0, 5) ?? "--:--"} ${s.timezone ?? ""}`
+                              : "No schedule set"}
+                            {s?.last_run_at
+                              ? ` · last run ${new Date(s.last_run_at).toLocaleString()}`
+                              : ""}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1.5">
+                            <Switch
+                              checked={s?.auto_publish ?? true}
+                              disabled={!s}
+                              onCheckedChange={(v) =>
+                                toggleBrand.mutate({ brand_id: b.id, auto_publish: v })
+                              }
+                            />
+                            <span className="text-xs">Auto-publish</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Switch
+                              checked={s?.autopilot_enabled ?? false}
+                              disabled={!s}
+                              onCheckedChange={(v) =>
+                                toggleBrand.mutate({ brand_id: b.id, autopilot_enabled: v })
+                              }
+                            />
+                            <span className="text-xs font-medium">Autopilot</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4">
+
+                      {/* Frequency: which days, what time, how many per day */}
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-1">
+                          {DAY_LABELS.map((label, d) => (
+                            <button
+                              key={d}
+                              type="button"
+                              disabled={!s}
+                              onClick={() => toggleDay(d)}
+                              className={`h-7 w-7 rounded-md border text-[11px] font-medium transition-colors ${
+                                days.includes(d)
+                                  ? "border-accent bg-accent text-accent-foreground"
+                                  : "border-border/60 text-muted-foreground hover:bg-muted"
+                              } disabled:opacity-50`}
+                              title={FULL_DAYS[d]}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground">Posts/day</span>
+                          <span className="text-xs text-muted-foreground">Time</span>
+                          <Input
+                            type="time"
+                            className="h-8 w-[7.5rem]"
+                            disabled={!s}
+                            defaultValue={s?.time_of_day?.slice(0, 5) ?? "09:00"}
+                            onBlur={(e) => {
+                              const v = e.target.value;
+                              if (s && /^\d{2}:\d{2}$/.test(v) && v !== s.time_of_day?.slice(0, 5)) {
+                                toggleBrand.mutate({ brand_id: b.id, time_of_day: v });
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground">Posts on those days</span>
                           <Input
                             type="number"
                             min={1}
@@ -194,30 +256,16 @@ export function AutopilotPanel() {
                             }}
                           />
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <Switch
-                            checked={s?.auto_publish ?? true}
-                            disabled={!s}
-                            onCheckedChange={(v) =>
-                              toggleBrand.mutate({ brand_id: b.id, auto_publish: v })
-                            }
-                          />
-                          <span className="text-xs">Auto-publish</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Switch
-                            checked={s?.autopilot_enabled ?? false}
-                            disabled={!s}
-                            onCheckedChange={(v) =>
-                              toggleBrand.mutate({ brand_id: b.id, autopilot_enabled: v })
-                            }
-                          />
-                          <span className="text-xs font-medium">Autopilot</span>
-                        </div>
+                        {days.length === 0 && s && (
+                          <span className="text-xs text-destructive">
+                            No days selected — nothing will post.
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
                 })}
+
               </div>
             </div>
 
