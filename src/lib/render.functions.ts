@@ -324,7 +324,7 @@ async function generateCopy(input: {
     pace: "reflective",
   };
 
-  if (!key) return fallback;
+  if (!process.env.OPENAI_API_KEY && !process.env.LOVABLE_API_KEY) return fallback;
 
   const voice = input.voice ?? (Math.random() < 0.5 ? "you" : "i-we");
   const voiceRule =

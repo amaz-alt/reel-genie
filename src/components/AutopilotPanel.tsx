@@ -16,6 +16,9 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Bot, FolderOpen, Loader2, PlayCircle, RefreshCw } from "lucide-react";
 
+const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+const FULL_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
 const stageLabel: Record<string, string> = {
   generate: "Generated",
   drive: "Drive",
@@ -60,6 +63,8 @@ export function AutopilotPanel() {
       autopilot_enabled?: boolean;
       auto_publish?: boolean;
       posts_per_day?: number;
+      days_of_week?: number[];
+      time_of_day?: string;
     }) => updateBrandAutopilot({ data: input }),
     onSuccess: () => invalidate(),
     onError: (e: Error) => toast.error(e.message),
