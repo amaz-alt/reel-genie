@@ -204,7 +204,33 @@ export async function publishReelCore(sb: any, reelId: string) {
     // treat the post as an image (first frame only) because their ingester
     // couldn't reliably determine the mime type. This also unblocks Pinterest
     // video Pins which require a real video media object.
-    let outstandMediaUrl = r.video_url;
+    // Always mint a FRESH signed URL from the render job's storage path — the
+    // stored `video_url` is a 7-day signed link, so autopilot publishes of
+    // older reels were dying with "fetch video 400" (expired token).
+    let sourceVideoUrl = r.video_url;
+    try {
+      const { data: job } = await supabaseAdmin
+        .from("render_jobs")
+        .select("storage_path")
+        .eq("reel_id", r.id)
+        .not("storage_path", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (job?.storage_path) {
+        const { data: signed } = await supabaseAdmin.storage
+          .from("brand-assets")
+          .createSignedUrl(job.storage_path, 60 * 60);
+        if (signed?.signedUrl) {
+          sourceVideoUrl = signed.signedUrl;
+          await supabaseAdmin.from("reels").update({ video_url: signed.signedUrl }).eq("id", r.id);
+        }
+      }
+    } catch {
+      /* fall back to the stored url */
+    }
+
+    let outstandMediaUrl = sourceVideoUrl;
     try {
       const step1 = await fetch(`${OUTSTAND_API_BASE}/v1/media/upload`, {
         method: "POST",
@@ -217,7 +243,7 @@ export async function publishReelCore(sb: any, reelId: string) {
       const uploadUrl = s1.data?.upload_url;
       if (!mediaId || !uploadUrl) throw new Error("media/upload missing id/upload_url");
 
-      const videoRes = await fetch(r.video_url);
+      const videoRes = await fetch(sourceVideoUrl);
       if (!videoRes.ok) throw new Error(`fetch video ${videoRes.status}`);
       const videoBuf = await videoRes.arrayBuffer();
 
