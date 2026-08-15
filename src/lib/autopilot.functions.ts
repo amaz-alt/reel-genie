@@ -85,6 +85,8 @@ export const updateBrandAutopilot = createServerFn({ method: "POST" })
         autopilot_enabled: z.boolean().optional(),
         auto_publish: z.boolean().optional(),
         posts_per_day: z.number().int().min(1).max(12).optional(),
+        days_of_week: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+        time_of_day: z.string().regex(/^\d{2}:\d{2}$/).optional(),
       })
       .parse(data),
   )

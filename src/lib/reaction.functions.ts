@@ -62,8 +62,7 @@ async function visionTagClip(
   kind: "reaction" | "demo",
   frames: string[],
 ): Promise<AssetTags | null> {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key || !frames.length) return null;
+  if ((!process.env.OPENAI_API_KEY && !process.env.LOVABLE_API_KEY) || !frames.length) return null;
 
   const sys =
     kind === "reaction"
@@ -83,28 +82,21 @@ async function visionTagClip(
         ].join("\n");
 
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "content-type": "application/json", "Lovable-API-Key": key },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: sys },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Tag this clip. Return the JSON only." },
-              ...frames.slice(0, 6).map((url) => ({ type: "image_url", image_url: { url } })),
-            ],
-          },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.3,
-      }),
-    });
-    if (!res.ok) return null;
-    const j = await res.json();
-    return JSON.parse(j?.choices?.[0]?.message?.content ?? "null");
+    const { aiJSON } = await import("@/lib/ai.server");
+    return (await aiJSON({
+      messages: [
+        { role: "system", content: sys },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Tag this clip. Return the JSON only." },
+            ...frames.slice(0, 6).map((url) => ({ type: "image_url", image_url: { url } })),
+          ],
+        },
+      ],
+      temperature: 0.3,
+      lovableModel: "google/gemini-2.5-flash",
+    })) as AssetTags | null;
   } catch {
     return null;
   }
@@ -248,8 +240,7 @@ async function writeOneLiner(opts: {
     caption: `${opts.demoTags.showcases ?? opts.demoTags.summary ?? opts.brandName} — see it in action.`,
     hashtags: ["#ai", "#automation", "#founders"],
   };
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) return fallback;
+  if (!process.env.OPENAI_API_KEY && !process.env.LOVABLE_API_KEY) return fallback;
 
   const sys = [
     "You write the single on-screen line for a reaction+demo short-form video.",
@@ -278,22 +269,16 @@ async function writeOneLiner(opts: {
     .join("\n");
 
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "content-type": "application/json", "Lovable-API-Key": key },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: sys },
-          { role: "user", content: user },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.95,
-      }),
-    });
-    if (!res.ok) return fallback;
-    const j = await res.json();
-    const parsed = JSON.parse(j?.choices?.[0]?.message?.content ?? "null");
+    const { aiJSON } = await import("@/lib/ai.server");
+    const parsed = (await aiJSON({
+      messages: [
+        { role: "system", content: sys },
+        { role: "user", content: user },
+      ],
+      temperature: 0.95,
+      lovableModel: "google/gemini-2.5-flash",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    })) as any;
     const hook = String(parsed?.hook ?? "").trim();
     if (!hook) return fallback;
     return {

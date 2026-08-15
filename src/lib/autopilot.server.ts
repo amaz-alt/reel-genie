@@ -30,7 +30,21 @@ async function log(
 }
 
 /** Local weekday (0=Sun) + minutes-since-midnight for a timezone. */
-function localSlot(timezone: string, at: Date) {
+const TZ_ALIASES: Record<string, string> = {
+  IST: "Asia/Kolkata",
+  PST: "America/Los_Angeles",
+  PDT: "America/Los_Angeles",
+  EST: "America/New_York",
+  EDT: "America/New_York",
+  CST: "America/Chicago",
+  GMT: "Etc/GMT",
+  BST: "Europe/London",
+  CET: "Europe/Berlin",
+  AEST: "Australia/Sydney",
+};
+
+function localSlot(rawTimezone: string, at: Date) {
+  const timezone = TZ_ALIASES[(rawTimezone || "UTC").toUpperCase()] ?? rawTimezone;
   let parts: Intl.DateTimeFormatPart[];
   try {
     parts = new Intl.DateTimeFormat("en-US", {

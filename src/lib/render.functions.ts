@@ -308,7 +308,6 @@ async function generateCopy(input: {
   product?: Record<string, unknown> | null;
   voice?: "you" | "i-we";
 }): Promise<CopyResult> {
-  const key = process.env.LOVABLE_API_KEY;
   const fallback: CopyResult = {
     hook: "the truth is most of us picked comfort over the work that would have changed everything.",
     caption: "The uncomfortable stuff is where the change lives.",
@@ -325,7 +324,7 @@ async function generateCopy(input: {
     pace: "reflective",
   };
 
-  if (!key) return fallback;
+  if (!process.env.OPENAI_API_KEY && !process.env.LOVABLE_API_KEY) return fallback;
 
   const voice = input.voice ?? (Math.random() < 0.5 ? "you" : "i-we");
   const voiceRule =
@@ -442,22 +441,16 @@ async function generateCopy(input: {
     .join("\n\n");
 
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "content-type": "application/json", "Lovable-API-Key": key },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: sys },
-          { role: "user", content: user },
-        ],
-        temperature: 0.95,
-        response_format: { type: "json_object" },
-      }),
-    });
-    if (!res.ok) throw new Error(`AI gateway ${res.status}`);
-    const j = await res.json();
-    const parsed = JSON.parse(j?.choices?.[0]?.message?.content ?? "{}");
+    const { aiJSON } = await import("@/lib/ai.server");
+    const parsed = ((await aiJSON({
+      messages: [
+        { role: "system", content: sys },
+        { role: "user", content: user },
+      ],
+      temperature: 0.95,
+      lovableModel: "google/gemini-3-flash-preview",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    })) ?? {}) as any;
     const beats = Array.isArray(parsed.script) ? parsed.script : [];
     const cleanBeats: ScriptBeat[] = beats
       .map((b: unknown) => {
@@ -683,8 +676,8 @@ async function generateStylePlan(input: {
   references: ReferenceBrief[];
   seed: number;
 }): Promise<TypographyStylePlan> {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) return fallbackStylePlan(input.hook, input.seed);
+  if (!process.env.OPENAI_API_KEY && !process.env.LOVABLE_API_KEY)
+    return fallbackStylePlan(input.hook, input.seed);
 
   // Build a compact, high-priority summary from the vision-analyzed references.
   // The planner is instructed to MATCH this design language, not invent one.
@@ -730,22 +723,16 @@ async function generateStylePlan(input: {
     .join("\n\n");
 
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "content-type": "application/json", "Lovable-API-Key": key },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: sys },
-          { role: "user", content: user },
-        ],
-        temperature: 0.82,
-        response_format: { type: "json_object" },
-      }),
-    });
-    if (!res.ok) throw new Error(`AI gateway ${res.status}`);
-    const j = await res.json();
-    const parsed = JSON.parse(j?.choices?.[0]?.message?.content ?? "{}");
+    const { aiJSON } = await import("@/lib/ai.server");
+    const parsed = ((await aiJSON({
+      messages: [
+        { role: "system", content: sys },
+        { role: "user", content: user },
+      ],
+      temperature: 0.82,
+      lovableModel: "google/gemini-3-flash-preview",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    })) ?? {}) as any;
     return z
       .object({
         version: z.literal("primitive-typography-v1"),
