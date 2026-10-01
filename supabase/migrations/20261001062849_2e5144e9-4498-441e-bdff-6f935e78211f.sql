@@ -1,0 +1,1 @@
+ALTER TABLE public.broll_assets ADD COLUMN duration_seconds numeric;

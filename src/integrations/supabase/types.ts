@@ -290,6 +290,7 @@ export type Database = {
         Row: {
           brand_id: string
           created_at: string
+          duration_seconds: number | null
           id: string
           label: string | null
           owner_id: string
@@ -299,6 +300,7 @@ export type Database = {
         Insert: {
           brand_id: string
           created_at?: string
+          duration_seconds?: number | null
           id?: string
           label?: string | null
           owner_id: string
@@ -308,6 +310,7 @@ export type Database = {
         Update: {
           brand_id?: string
           created_at?: string
+          duration_seconds?: number | null
           id?: string
           label?: string | null
           owner_id?: string
