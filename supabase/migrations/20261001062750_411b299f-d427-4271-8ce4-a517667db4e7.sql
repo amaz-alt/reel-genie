@@ -1,0 +1,1 @@
+CREATE POLICY "Owners manage files in their B-roll folder" ON storage.objects FOR ALL TO authenticated USING (bucket_id = 'broll-assets' AND (storage.foldername(name))[1] = auth.uid()::text) WITH CHECK (bucket_id = 'broll-assets' AND (storage.foldername(name))[1] = auth.uid()::text);
