@@ -286,6 +286,153 @@ export type Database = {
         }
         Relationships: []
       }
+      broll_assets: {
+        Row: {
+          brand_id: string
+          created_at: string
+          id: string
+          label: string | null
+          owner_id: string
+          sort_order: number
+          storage_path: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          owner_id: string
+          sort_order?: number
+          storage_path: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          owner_id?: string
+          sort_order?: number
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broll_assets_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broll_hooks: {
+        Row: {
+          brand_id: string
+          created_at: string
+          hook_text: string
+          id: string
+          owner_id: string
+          used_at: string | null
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          hook_text: string
+          id?: string
+          owner_id: string
+          used_at?: string | null
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          hook_text?: string
+          id?: string
+          owner_id?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broll_hooks_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broll_reels: {
+        Row: {
+          asset_id: string | null
+          brand_id: string
+          created_at: string
+          error: string | null
+          hook_id: string | null
+          hook_text: string
+          id: string
+          owner_id: string
+          render_job_id: string | null
+          status: string
+          storage_path: string | null
+          video_url: string | null
+        }
+        Insert: {
+          asset_id?: string | null
+          brand_id: string
+          created_at?: string
+          error?: string | null
+          hook_id?: string | null
+          hook_text: string
+          id?: string
+          owner_id: string
+          render_job_id?: string | null
+          status?: string
+          storage_path?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          asset_id?: string | null
+          brand_id?: string
+          created_at?: string
+          error?: string | null
+          hook_id?: string | null
+          hook_text?: string
+          id?: string
+          owner_id?: string
+          render_job_id?: string | null
+          status?: string
+          storage_path?: string | null
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broll_reels_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "broll_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broll_reels_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broll_reels_hook_id_fkey"
+            columns: ["hook_id"]
+            isOneToOne: false
+            referencedRelation: "broll_hooks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broll_reels_render_job_id_fkey"
+            columns: ["render_job_id"]
+            isOneToOne: false
+            referencedRelation: "render_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products_consumed: {
         Row: {
           brand_id: string
