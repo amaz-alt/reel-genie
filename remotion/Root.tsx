@@ -7,6 +7,7 @@ import { ProductShowcase } from "./compositions/product-showcase";
 import { QuoteCard } from "./compositions/quote-card";
 import { BeforeAfter } from "./compositions/before-after";
 import { ReactionDemo, type ReactionDemoProps } from "./compositions/reaction-demo";
+import { BrollHook, type BrollHookProps } from "./compositions/broll-hook";
 import { DEFAULT_BRAND, type ReelProps, type Beat } from "./brand";
 
 const demoScript: Beat[] = [
@@ -50,6 +51,12 @@ const reactionDemoDefaults: ReactionDemoProps = {
   hookTiming: "on-beat",
 };
 
+const brollDefaults: BrollHookProps = {
+  hook: "I wish I found this sooner.",
+  video: { url: "" },
+  brand: DEFAULT_BRAND,
+};
+
 export const RemotionRoot: React.FC = () => (
   <>
     <Composition id="motion-poster" component={MotionPoster} defaultProps={defaultProps} {...base} />
@@ -66,5 +73,6 @@ export const RemotionRoot: React.FC = () => (
       {...base}
       durationInFrames={270}
     />
+    <Composition id="broll-hook" component={BrollHook} defaultProps={brollDefaults} {...base} durationInFrames={300} />
   </>
 );

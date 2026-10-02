@@ -276,6 +276,11 @@ function BrandDetail() {
               Reaction + Demo Reels
             </Link>
           </Button>
+          <Button asChild variant="secondary">
+            <Link to="/app/brands/$brandId/broll" params={{ brandId }}>
+              BROLL VIDS
+            </Link>
+          </Button>
           <Button
             variant="outline"
             onClick={() => {

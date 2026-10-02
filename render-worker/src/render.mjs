@@ -93,6 +93,15 @@ function sb(supabase) {
       });
       if (!r.ok) throw new Error(`patchReel ${r.status}: ${await r.text()}`);
     },
+    async patchBrollReel(reelId, patch) {
+      if (!reelId) return;
+      const r = await fetch(`${base}/rest/v1/broll_reels?id=eq.${reelId}`, {
+        method: "PATCH",
+        headers: { ...headers, Prefer: "return=minimal" },
+        body: JSON.stringify(patch),
+      });
+      if (!r.ok) throw new Error(`patchBrollReel ${r.status}: ${await r.text()}`);
+    },
     async signDownload(storagePath, expiresIn) {
       const r = await fetch(
         `${base}/storage/v1/object/sign/brand-assets/${storagePath}`,
@@ -140,6 +149,10 @@ async function writeResult(job, logs, result) {
       status: "ready",
       video_url: videoUrl,
     });
+    await client.patchBrollReel(job.supabase.brollReelId, {
+      status: "ready",
+      video_url: videoUrl,
+    });
     return;
   }
 
@@ -161,6 +174,10 @@ async function writeResult(job, logs, result) {
       logs: mergedLogs,
     });
     await client.patchReel(job.supabase.reelId, {
+      status: "failed",
+      error: result.error,
+    });
+    await client.patchBrollReel(job.supabase.brollReelId, {
       status: "failed",
       error: result.error,
     });
