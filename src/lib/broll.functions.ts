@@ -25,7 +25,7 @@ export const createBrollUploadUrl = createServerFn({ method: "POST" })
 
 export const addBrollAsset = createServerFn({ method: "POST" })
   .middleware([requireAppAuth])
-  .inputValidator((input: unknown) => z.object({ brand_id: z.string().uuid(), storage_path: z.string().min(1), label: z.string().max(200), duration_seconds: z.number().positive().max(300) }).parse(input))
+  .inputValidator((input: unknown) => z.object({ brand_id: z.string().uuid(), storage_path: z.string().min(1), label: z.string().max(200), duration_seconds: z.number().positive().max(60) }).parse(input))
   .handler(async ({ data, context }) => {
     if (!data.storage_path.startsWith(`${context.userId}/${data.brand_id}/`)) {
       throw new Error("The uploaded clip does not belong to this brand.");
@@ -48,7 +48,10 @@ export const addBrollAsset = createServerFn({ method: "POST" })
       })
       .select("id")
       .single();
-    if (error) throw new Error(error.message);
+    if (error) {
+      await context.supabase.storage.from(BUCKET).remove([data.storage_path]);
+      throw new Error(error.message);
+    }
     return { id: row.id };
   });
 
