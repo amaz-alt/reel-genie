@@ -30,10 +30,11 @@ async function readDuration(file: File) {
     const video = document.createElement("video");
     video.preload = "metadata";
     video.src = url;
-    return await new Promise<number>((resolve, reject) => {
+    const duration = await new Promise<number>((resolve, reject) => {
       video.onloadedmetadata = () => resolve(video.duration);
       video.onerror = () => reject(new Error(`Could not read ${file.name}`));
     });
+    return duration;
   } finally {
     URL.revokeObjectURL(url);
   }

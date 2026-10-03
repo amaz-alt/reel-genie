@@ -25,8 +25,11 @@ export const createBrollUploadUrl = createServerFn({ method: "POST" })
 
 export const addBrollAsset = createServerFn({ method: "POST" })
   .middleware([requireAppAuth])
-  .inputValidator((input: unknown) => z.object({ brand_id: z.string().uuid(), storage_path: z.string().min(1), label: z.string().max(200), duration_seconds: z.number().positive().max(300) }).parse(input))
+  .inputValidator((input: unknown) => z.object({ brand_id: z.string().uuid(), storage_path: z.string().min(1), label: z.string().max(200), duration_seconds: z.number().positive().max(60) }).parse(input))
   .handler(async ({ data, context }) => {
+    if (!data.storage_path.startsWith(`${context.userId}/${data.brand_id}/`)) {
+      throw new Error("The uploaded clip does not belong to this brand.");
+    }
     const { count, error: countError } = await context.supabase
       .from("broll_assets")
       .select("id", { count: "exact", head: true })
@@ -45,7 +48,10 @@ export const addBrollAsset = createServerFn({ method: "POST" })
       })
       .select("id")
       .single();
-    if (error) throw new Error(error.message);
+    if (error) {
+      await context.supabase.storage.from(BUCKET).remove([data.storage_path]);
+      throw new Error(error.message);
+    }
     return { id: row.id };
   });
 
@@ -186,7 +192,10 @@ export const generateBrollReels = createServerFn({ method: "POST" })
         .insert({ brand_id: brand.id, owner_id: userId, asset_id: clip.id, hook_id: hook.id, hook_text: hook.hook_text, status: "queued" })
         .select("id")
         .single();
-      if (reelInsertError) throw new Error(reelInsertError.message);
+      if (reelInsertError) {
+        await supabase.from("broll_hooks").update({ used_at: null }).eq("id", hook.id).eq("used_at", now);
+        throw new Error(reelInsertError.message);
+      }
 
       try {
         const { data: signedClip, error: signError } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(clip.storage_path, 60 * 60 * 6);
@@ -199,7 +208,7 @@ export const generateBrollReels = createServerFn({ method: "POST" })
         const fonts = (brand.brand_fonts ?? {}) as Record<string, string>;
         const props = {
           hook: hook.hook_text,
-          video: { url: signedClip.signedUrl },
+          video: { url: signedClip.signedUrl, durationSeconds: clip.duration_seconds ?? 10 },
           brand: {
             colors: {
               primary: colors.primary || "#111111",

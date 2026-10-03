@@ -1,1 +1,1 @@
-- [ ] Add isolated per-brand B-roll clip library, hook queue, and reel rendering flow.
+- [x] Add isolated per-brand B-roll clip library, hook queue, and reel rendering flow.
