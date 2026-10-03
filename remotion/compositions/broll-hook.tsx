@@ -1,10 +1,10 @@
 import React from "react";
-import { AbsoluteFill, OffthreadVideo, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Loop, OffthreadVideo, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { useGoogleFont, type BrandTokens } from "../brand";
 
 export type BrollHookProps = {
   hook: string;
-  video: { url: string };
+  video: { url: string; durationSeconds: number };
   brand: BrandTokens;
 };
 
@@ -22,7 +22,9 @@ export const BrollHook: React.FC<BrollHookProps> = ({ hook, video, brand }) => {
 
   return (
     <AbsoluteFill style={{ backgroundColor: ink }}>
-      <OffthreadVideo src={video.url} muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      <Loop durationInFrames={Math.max(1, Math.round(video.durationSeconds * fps))}>
+        <OffthreadVideo src={video.url} muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      </Loop>
       <AbsoluteFill
         style={{
           justifyContent: "flex-end",

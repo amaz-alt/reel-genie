@@ -53,7 +53,7 @@ const reactionDemoDefaults: ReactionDemoProps = {
 
 const brollDefaults: BrollHookProps = {
   hook: "I wish I found this sooner.",
-  video: { url: "" },
+  video: { url: "", durationSeconds: 10 },
   brand: DEFAULT_BRAND,
 };
 
