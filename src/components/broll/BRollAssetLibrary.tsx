@@ -43,6 +43,7 @@ async function readDuration(file: File) {
 export const BRollAssetLibrary: React.FC<{ brandId: string }> = ({ brandId }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [pastedHooks, setPastedHooks] = useState("");
   const createUrl = useServerFn(createBrollUploadUrl);
   const addAsset = useServerFn(addBrollAsset);
@@ -68,35 +69,57 @@ export const BRollAssetLibrary: React.FC<{ brandId: string }> = ({ brandId }) =>
       return;
     }
     setBusy(true);
+    setUploadProgress({ done: 0, total: selected.length });
     let added = 0;
-    for (const file of selected) {
-      try {
-        const duration = await readDuration(file);
-        if (duration > 60) throw new Error(`${file.name} is longer than 60 seconds.`);
-        const target = await createUrl({ data: { brand_id: brandId, filename: file.name } });
-        const response = await fetch(target.signedUrl, {
-          method: "PUT",
-          headers: { "content-type": file.type },
-          body: file,
-        });
-        if (!response.ok) throw new Error(`Could not upload ${file.name} (${response.status}).`);
-        await addAsset({
-          data: {
-            brand_id: brandId,
-            storage_path: target.path,
-            label: file.name.replace(/\.[^.]+$/, ""),
-            duration_seconds: Math.round(duration * 10) / 10,
-          },
-        });
-        added++;
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : `Upload failed for ${file.name}.`);
+    let completed = 0;
+    try {
+      for (let index = 0; index < selected.length; index += 3) {
+        const batch = selected.slice(index, index + 3);
+        const uploaded = await Promise.all(batch.map(async (file) => {
+          try {
+            const duration = await readDuration(file);
+            if (duration > 60) throw new Error(`${file.name} is longer than 60 seconds.`);
+            const target = await createUrl({ data: { brand_id: brandId, filename: file.name } });
+            const response = await fetch(target.signedUrl, {
+              method: "PUT",
+              headers: { "content-type": file.type },
+              body: file,
+            });
+            if (!response.ok) throw new Error(`Could not upload ${file.name} (${response.status}).`);
+            return { file, duration, path: target.path };
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : `Upload failed for ${file.name}.`);
+            return null;
+          }
+        }));
+
+        for (const item of uploaded) {
+          if (item) {
+            try {
+              await addAsset({
+                data: {
+                  brand_id: brandId,
+                  storage_path: item.path,
+                  label: item.file.name.replace(/\.[^.]+$/, ""),
+                  duration_seconds: Math.round(item.duration * 10) / 10,
+                },
+              });
+              added++;
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : `Could not save ${item.file.name}.`);
+            }
+          }
+          completed++;
+          setUploadProgress({ done: completed, total: selected.length });
+        }
       }
+      if (added) toast.success(`${added} clip${added === 1 ? "" : "s"} added`);
+      await qc.invalidateQueries({ queryKey: ["broll-assets", brandId] });
+      if (inputRef.current) inputRef.current.value = "";
+    } finally {
+      setBusy(false);
+      setUploadProgress(null);
     }
-    setBusy(false);
-    if (added) toast.success(`${added} clip${added === 1 ? "" : "s"} added`);
-    await qc.invalidateQueries({ queryKey: ["broll-assets", brandId] });
-    if (inputRef.current) inputRef.current.value = "";
   }
 
   async function saveHookLines() {
@@ -126,7 +149,7 @@ export const BRollAssetLibrary: React.FC<{ brandId: string }> = ({ brandId }) =>
             <p className="mt-1 text-sm text-muted-foreground">{clips.length} of 15 clips</p>
           </div>
           <Button onClick={() => inputRef.current?.click()} disabled={busy || clips.length >= 15}>
-            {busy ? "Uploading clips…" : "Add video clips"}
+            {busy && uploadProgress ? `Uploading ${uploadProgress.done}/${uploadProgress.total}…` : "Add video clips"}
           </Button>
           <input
             ref={inputRef}
