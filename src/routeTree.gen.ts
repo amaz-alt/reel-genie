@@ -9,28 +9,24 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
-import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppAccountRouteImport } from './routes/_authenticated/app.account'
-import { Route as AuthenticatedAppBrandsBrandIdRouteImport } from './routes/_authenticated/app.brands.$brandId'
-import { Route as AuthenticatedAppBrandsNewRouteImport } from './routes/_authenticated/app.brands.new'
-import { Route as ApiPublicAutopilotTickRouteImport } from './routes/api/public/autopilot/tick'
-import { Route as ApiPublicRenderCallbackRouteImport } from './routes/api/public/render/callback'
 import { Route as ApiPublicRenderHealthRouteImport } from './routes/api/public/render/health'
-import { Route as AuthenticatedAppBrandsBrandIdBrollRouteImport } from './routes/_authenticated/app.brands.$brandId_.broll'
+import { Route as ApiPublicRenderCallbackRouteImport } from './routes/api/public/render/callback'
+import { Route as ApiPublicAutopilotTickRouteImport } from './routes/api/public/autopilot/tick'
+import { Route as AuthenticatedAppBrandsNewRouteImport } from './routes/_authenticated/app.brands.new'
+import { Route as AuthenticatedAppBrandsBrandIdRouteImport } from './routes/_authenticated/app.brands.$brandId'
 import { Route as AuthenticatedAppBrandsBrandIdReactionsRouteImport } from './routes/_authenticated/app.brands.$brandId_.reactions'
+import { Route as AuthenticatedAppBrandsBrandIdBrollRouteImport } from './routes/_authenticated/app.brands.$brandId_.broll'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -38,9 +34,13 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
@@ -58,21 +58,9 @@ const AuthenticatedAppAccountRoute = AuthenticatedAppAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
-const AuthenticatedAppBrandsBrandIdRoute =
-  AuthenticatedAppBrandsBrandIdRouteImport.update({
-    id: '/brands/$brandId',
-    path: '/brands/$brandId',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppBrandsNewRoute =
-  AuthenticatedAppBrandsNewRouteImport.update({
-    id: '/brands/new',
-    path: '/brands/new',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const ApiPublicAutopilotTickRoute = ApiPublicAutopilotTickRouteImport.update({
-  id: '/api/public/autopilot/tick',
-  path: '/api/public/autopilot/tick',
+const ApiPublicRenderHealthRoute = ApiPublicRenderHealthRouteImport.update({
+  id: '/api/public/render/health',
+  path: '/api/public/render/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicRenderCallbackRoute = ApiPublicRenderCallbackRouteImport.update({
@@ -80,21 +68,33 @@ const ApiPublicRenderCallbackRoute = ApiPublicRenderCallbackRouteImport.update({
   path: '/api/public/render/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicRenderHealthRoute = ApiPublicRenderHealthRouteImport.update({
-  id: '/api/public/render/health',
-  path: '/api/public/render/health',
+const ApiPublicAutopilotTickRoute = ApiPublicAutopilotTickRouteImport.update({
+  id: '/api/public/autopilot/tick',
+  path: '/api/public/autopilot/tick',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedAppBrandsBrandIdBrollRoute =
-  AuthenticatedAppBrandsBrandIdBrollRouteImport.update({
-    id: '/brands/$brandId_/broll',
-    path: '/brands/$brandId/broll',
+const AuthenticatedAppBrandsNewRoute =
+  AuthenticatedAppBrandsNewRouteImport.update({
+    id: '/brands/new',
+    path: '/brands/new',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppBrandsBrandIdRoute =
+  AuthenticatedAppBrandsBrandIdRouteImport.update({
+    id: '/brands/$brandId',
+    path: '/brands/$brandId',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 const AuthenticatedAppBrandsBrandIdReactionsRoute =
   AuthenticatedAppBrandsBrandIdReactionsRouteImport.update({
     id: '/brands/$brandId_/reactions',
     path: '/brands/$brandId/reactions',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppBrandsBrandIdBrollRoute =
+  AuthenticatedAppBrandsBrandIdBrollRouteImport.update({
+    id: '/brands/$brandId_/broll',
+    path: '/brands/$brandId/broll',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 
@@ -204,18 +204,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -225,11 +218,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app': {
@@ -253,25 +253,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppAccountRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/brands/$brandId': {
-      id: '/_authenticated/app/brands/$brandId'
-      path: '/brands/$brandId'
-      fullPath: '/app/brands/$brandId'
-      preLoaderRoute: typeof AuthenticatedAppBrandsBrandIdRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/brands/new': {
-      id: '/_authenticated/app/brands/new'
-      path: '/brands/new'
-      fullPath: '/app/brands/new'
-      preLoaderRoute: typeof AuthenticatedAppBrandsNewRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/api/public/autopilot/tick': {
-      id: '/api/public/autopilot/tick'
-      path: '/api/public/autopilot/tick'
-      fullPath: '/api/public/autopilot/tick'
-      preLoaderRoute: typeof ApiPublicAutopilotTickRouteImport
+    '/api/public/render/health': {
+      id: '/api/public/render/health'
+      path: '/api/public/render/health'
+      fullPath: '/api/public/render/health'
+      preLoaderRoute: typeof ApiPublicRenderHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/render/callback': {
@@ -281,18 +267,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicRenderCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/render/health': {
-      id: '/api/public/render/health'
-      path: '/api/public/render/health'
-      fullPath: '/api/public/render/health'
-      preLoaderRoute: typeof ApiPublicRenderHealthRouteImport
+    '/api/public/autopilot/tick': {
+      id: '/api/public/autopilot/tick'
+      path: '/api/public/autopilot/tick'
+      fullPath: '/api/public/autopilot/tick'
+      preLoaderRoute: typeof ApiPublicAutopilotTickRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/app/brands/$brandId_/broll': {
-      id: '/_authenticated/app/brands/$brandId_/broll'
-      path: '/brands/$brandId/broll'
-      fullPath: '/app/brands/$brandId/broll'
-      preLoaderRoute: typeof AuthenticatedAppBrandsBrandIdBrollRouteImport
+    '/_authenticated/app/brands/new': {
+      id: '/_authenticated/app/brands/new'
+      path: '/brands/new'
+      fullPath: '/app/brands/new'
+      preLoaderRoute: typeof AuthenticatedAppBrandsNewRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/brands/$brandId': {
+      id: '/_authenticated/app/brands/$brandId'
+      path: '/brands/$brandId'
+      fullPath: '/app/brands/$brandId'
+      preLoaderRoute: typeof AuthenticatedAppBrandsBrandIdRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/brands/$brandId_/reactions': {
@@ -300,6 +293,13 @@ declare module '@tanstack/react-router' {
       path: '/brands/$brandId/reactions'
       fullPath: '/app/brands/$brandId/reactions'
       preLoaderRoute: typeof AuthenticatedAppBrandsBrandIdReactionsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/brands/$brandId_/broll': {
+      id: '/_authenticated/app/brands/$brandId_/broll'
+      path: '/brands/$brandId/broll'
+      fullPath: '/app/brands/$brandId/broll'
+      preLoaderRoute: typeof AuthenticatedAppBrandsBrandIdBrollRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
   }
