@@ -90,13 +90,16 @@ export const BRollAssetLibrary: React.FC<{ brandId: string }> = ({ brandId }) =>
           } catch (error) {
             toast.error(error instanceof Error ? error.message : `Upload failed for ${file.name}.`);
             return null;
+          } finally {
+            completed++;
+            setUploadProgress({ done: completed, total: selected.length });
           }
         }));
 
-        for (const item of uploaded) {
-          if (item) {
-            try {
-              await addAsset({
+        const saved = await Promise.all(uploaded.map(async (item) => {
+          if (!item) return false;
+          try {
+            await addAsset({
                 data: {
                   brand_id: brandId,
                   storage_path: item.path,
@@ -104,14 +107,13 @@ export const BRollAssetLibrary: React.FC<{ brandId: string }> = ({ brandId }) =>
                   duration_seconds: Math.round(item.duration * 10) / 10,
                 },
               });
-              added++;
-            } catch (error) {
-              toast.error(error instanceof Error ? error.message : `Could not save ${item.file.name}.`);
-            }
+            return true;
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : `Could not save ${item.file.name}.`);
+            return false;
           }
-          completed++;
-          setUploadProgress({ done: completed, total: selected.length });
-        }
+        }));
+        added += saved.filter(Boolean).length;
       }
       if (added) toast.success(`${added} clip${added === 1 ? "" : "s"} added`);
       await qc.invalidateQueries({ queryKey: ["broll-assets", brandId] });
