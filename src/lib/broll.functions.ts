@@ -170,10 +170,7 @@ export const generateBrollReels = createServerFn({ method: "POST" })
     const workerUrl = process.env.VPS_RENDER_URL;
     const workerToken = process.env.RENDER_WORKER_TOKEN;
     if (!workerUrl || !workerToken) throw new Error("The render service is not configured.");
-    const takenHooks: string[] = [];
-    const results: Array<{ id: string; hook_text: string }> = [];
-
-    for (const [index, hook] of hooks.entries()) {
+    const dispatchOne = async (hook: (typeof hooks)[number], index: number) => {
       const now = new Date().toISOString();
       const { data: claimed, error: claimError } = await supabase
         .from("broll_hooks")
@@ -183,24 +180,23 @@ export const generateBrollReels = createServerFn({ method: "POST" })
         .select("id")
         .maybeSingle();
       if (claimError) throw new Error(claimError.message);
-      if (!claimed) continue;
-      takenHooks.push(hook.id);
+      if (!claimed) return { ok: false as const, skipped: true as const };
 
-      const clip = clips[((priorCount ?? 0) + index) % clips.length];
-      const { data: reel, error: reelInsertError } = await supabase
-        .from("broll_reels")
-        .insert({ brand_id: brand.id, owner_id: userId, asset_id: clip.id, hook_id: hook.id, hook_text: hook.hook_text, status: "queued" })
-        .select("id")
-        .single();
-      if (reelInsertError) {
-        await supabase.from("broll_hooks").update({ used_at: null }).eq("id", hook.id).eq("used_at", now);
-        throw new Error(reelInsertError.message);
-      }
-
+      let reelId: string | null = null;
       try {
+        const clip = clips[((priorCount ?? 0) + index) % clips.length];
+        const { data: reel, error: reelInsertError } = await supabase
+          .from("broll_reels")
+          .insert({ brand_id: brand.id, owner_id: userId, asset_id: clip.id, hook_id: hook.id, hook_text: hook.hook_text, status: "queued" })
+          .select("id")
+          .single();
+        if (reelInsertError) throw new Error(reelInsertError.message);
+        reelId = reel.id;
+
         const { data: signedClip, error: signError } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(clip.storage_path, 60 * 60 * 6);
         if (signError || !signedClip?.signedUrl) throw new Error(signError?.message ?? "Could not prepare source clip.");
-        const { data: outputUpload, error: outputError } = await supabaseAdmin.storage.from(OUTPUT_BUCKET).createSignedUploadUrl(`${userId}/${brand.id}/broll-reels/${reel.id}.mp4`);
+        const storagePath = `${userId}/${brand.id}/broll-reels/${reel.id}.mp4`;
+        const { data: outputUpload, error: outputError } = await supabaseAdmin.storage.from(OUTPUT_BUCKET).createSignedUploadUrl(storagePath);
         if (outputError) throw new Error(outputError.message);
 
         const durationInFrames = Math.max(30, Math.min(30 * 60, Math.round((clip.duration_seconds ?? 10) * 30)));
@@ -219,7 +215,6 @@ export const generateBrollReels = createServerFn({ method: "POST" })
             fonts: { display: fonts.display || "Space Grotesk", body: fonts.body || "Inter" },
           },
         };
-        const storagePath = `${userId}/${brand.id}/broll-reels/${reel.id}.mp4`;
         const { data: job, error: jobError } = await supabaseAdmin.from("render_jobs").insert({
           brand_id: brand.id,
           reel_id: null,
@@ -256,18 +251,21 @@ export const generateBrollReels = createServerFn({ method: "POST" })
           }),
         });
         if (!response.ok) throw new Error(`Render service rejected this video (${response.status}).`);
-        results.push({ id: reel.id, hook_text: hook.hook_text });
+        return { ok: true as const, result: { id: reel.id, hook_text: hook.hook_text } };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        await supabaseAdmin.from("broll_reels").update({ status: "failed", error: message }).eq("id", reel.id);
-        await supabaseAdmin.from("render_jobs").update({ status: "failed", last_error: message }).eq("reel_id", reel.id);
+        if (reelId) await supabaseAdmin.from("broll_reels").update({ status: "failed", error: message }).eq("id", reelId);
+        await supabase.from("broll_hooks").update({ used_at: null }).eq("id", hook.id).eq("used_at", now);
+        return { ok: false as const, skipped: false as const, message };
       }
-    }
+    };
 
-    // If a job failed before it could be accepted by the worker, return its line to the queue.
-    const failedHookIds = takenHooks.filter((hookId) => !results.some((item) => item.hook_text === hooks.find((candidate) => candidate.id === hookId)?.hook_text));
-    if (failedHookIds.length) {
-      await supabaseAdmin.from("broll_hooks").update({ used_at: null }).in("id", failedHookIds);
+    const outcomes: Awaited<ReturnType<typeof dispatchOne>>[] = [];
+    for (let index = 0; index < hooks.length; index += 3) {
+      const batch = hooks.slice(index, index + 3);
+      outcomes.push(...await Promise.all(batch.map((hook, offset) => dispatchOne(hook, index + offset))));
     }
-    return { generated: results.length, results, availableHooks: Math.max(0, (hooks.length - results.length)) };
+    const results = outcomes.flatMap((outcome) => outcome.ok ? [outcome.result] : []);
+    const failed = outcomes.filter((outcome) => !outcome.ok && !outcome.skipped).length;
+    return { generated: results.length, results, failed, availableHooks: Math.max(0, hooks.length - results.length - failed) };
   });
