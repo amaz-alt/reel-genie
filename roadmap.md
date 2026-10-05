@@ -1,2 +1,2 @@
 - [x] Add isolated per-brand B-roll clip library, hook queue, and reel rendering flow.
-- [ ] Make B-roll generation progress visible and reduce B-roll-only render overhead without changing reel quality.
+- [x] Make B-roll generation progress visible and reduce B-roll-only render overhead without changing reel quality.
