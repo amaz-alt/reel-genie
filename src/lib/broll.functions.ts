@@ -183,6 +183,7 @@ export const generateBrollReels = createServerFn({ method: "POST" })
       if (!claimed) return { ok: false as const, skipped: true as const };
 
       let reelId: string | null = null;
+      let renderJobId: string | null = null;
       try {
         const clip = clips[((priorCount ?? 0) + index) % clips.length];
         const { data: reel, error: reelInsertError } = await supabase
@@ -225,6 +226,7 @@ export const generateBrollReels = createServerFn({ method: "POST" })
           max_attempts: 3,
         }).select("id").single();
         if (jobError) throw new Error(jobError.message);
+        renderJobId = job.id;
 
         await supabaseAdmin.from("broll_reels").update({ render_job_id: job.id, storage_path: storagePath, status: "rendering" }).eq("id", reel.id);
         await supabaseAdmin.from("render_jobs").update({ status: "rendering", attempts: 1, dispatched_at: now, worker_url: workerUrl }).eq("id", job.id);
@@ -238,6 +240,7 @@ export const generateBrollReels = createServerFn({ method: "POST" })
             height: 1920,
             fps: 30,
             durationInFrames,
+            x264Preset: "veryfast",
             props,
             upload: { signedUrl: outputUpload.signedUrl, path: storagePath },
             supabase: {
@@ -255,6 +258,7 @@ export const generateBrollReels = createServerFn({ method: "POST" })
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (reelId) await supabaseAdmin.from("broll_reels").update({ status: "failed", error: message }).eq("id", reelId);
+        if (renderJobId) await supabaseAdmin.from("render_jobs").update({ status: "failed", last_error: message }).eq("id", renderJobId);
         await supabase.from("broll_hooks").update({ used_at: null }).eq("id", hook.id).eq("used_at", now);
         return { ok: false as const, skipped: false as const, message };
       }
