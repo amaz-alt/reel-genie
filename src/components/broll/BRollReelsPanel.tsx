@@ -90,10 +90,11 @@ export const BRollReelsPanel: React.FC<{ brandId: string }> = ({ brandId }) => {
           </p>
         </div>
         <Button onClick={() => void makeBatch()} disabled={!unusedCount || pending || starting}>
+          {starting || pending ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
           {starting
             ? `Starting ${Math.min(30, unusedCount)} reels…`
             : pending
-              ? `Rendering ${pendingCount} reel${pendingCount === 1 ? "" : "s"}…`
+              ? `${pendingCount} rendering…`
               : `Generate next ${Math.min(30, unusedCount) || "batch"}`}
         </Button>
       </div>

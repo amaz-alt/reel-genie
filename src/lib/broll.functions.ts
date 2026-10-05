@@ -240,6 +240,7 @@ export const generateBrollReels = createServerFn({ method: "POST" })
             height: 1920,
             fps: 30,
             durationInFrames,
+            x264Preset: "veryfast",
             props,
             upload: { signedUrl: outputUpload.signedUrl, path: storagePath },
             supabase: {
