@@ -6,6 +6,68 @@ const BUCKET = "broll-assets";
 const OUTPUT_BUCKET = "brand-assets";
 const TEMPLATE_ID = "broll-hook";
 
+const STUCK_AFTER_MS = 20 * 60 * 1000;
+
+type ReelRow = {
+  id: string;
+  hook_id: string | null;
+  render_job_id: string | null;
+  status: string;
+  error: string | null;
+  created_at: string;
+  [key: string]: unknown;
+};
+
+/**
+ * Reels can get stuck in "rendering" when the render server fails without
+ * reporting back (e.g. an outdated server build). Sync them with the render job
+ * and give up after STUCK_AFTER_MS, returning the hook line to the queue.
+ */
+async function reconcileStuckReels<T extends ReelRow>(supabase: any, rows: T[]): Promise<T[]> {
+  const pending = rows.filter((row) => row.status === "rendering" || row.status === "queued");
+  if (!pending.length) return rows;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const jobIds = pending.map((row) => row.render_job_id).filter((id): id is string => Boolean(id));
+  const { data: jobs } = jobIds.length
+    ? await supabaseAdmin.from("render_jobs").select("id, status, last_error").in("id", jobIds)
+    : { data: [] as { id: string; status: string; last_error: string | null }[] };
+  const jobMap = new Map((jobs ?? []).map((job) => [job.id, job]));
+  const now = Date.now();
+  const updates = new Map<string, { status: string; error: string | null }>();
+
+  for (const row of pending) {
+    const job = row.render_job_id ? jobMap.get(row.render_job_id) : undefined;
+    let error: string | null = null;
+    if (job?.status === "failed") {
+      error = /Could not find composition/i.test(job.last_error ?? "")
+        ? "The render server is outdated and can't make B-roll reels yet. Update it, then generate again."
+        : job.last_error || "Render failed.";
+    } else if (job?.status !== "completed" && now - new Date(row.created_at).getTime() > STUCK_AFTER_MS) {
+      error = "This reel took too long and was stopped. Its hook line is back in the queue.";
+      if (job) await supabaseAdmin.from("render_jobs").update({ status: "failed", last_error: error }).eq("id", job.id);
+    }
+    if (!error) continue;
+    await supabaseAdmin.from("broll_reels").update({ status: "failed", error }).eq("id", row.id);
+    if (row.hook_id) await supabase.from("broll_hooks").update({ used_at: null }).eq("id", row.hook_id);
+    updates.set(row.id, { status: "failed", error });
+  }
+  return rows.map((row) => (updates.has(row.id) ? { ...row, ...updates.get(row.id)! } : row));
+}
+
+async function assertRendererSupportsBroll(workerUrl: string) {
+  let health: { version?: string; features?: string[] } | null = null;
+  try {
+    const response = await fetch(`${workerUrl.replace(/\/$/, "")}/health`, { signal: AbortSignal.timeout(8_000) });
+    if (response.ok) health = await response.json();
+  } catch {
+    throw new Error("The render server isn't responding. Check that it's running on your server, then try again.");
+  }
+  if (!health) throw new Error("The render server isn't responding. Check that it's running on your server, then try again.");
+  if (!health.features?.includes("broll-hook")) {
+    throw new Error(`Your render server is an older version (${health.version ?? "unknown"}) that can't make B-roll reels. Update it on your server, then generate again.`);
+  }
+}
+
 export const createBrollUploadUrl = createServerFn({ method: "POST" })
   .middleware([requireAppAuth])
   .inputValidator((input: unknown) => z.object({ brand_id: z.string().uuid(), filename: z.string().min(1).max(200) }).parse(input))
@@ -130,12 +192,13 @@ export const listBrollReels = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
       .from("broll_reels")
-      .select("id, hook_text, status, storage_path, video_url, error, created_at")
+      .select("id, hook_id, render_job_id, hook_text, status, storage_path, video_url, error, created_at")
       .eq("brand_id", data.brand_id)
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) throw new Error(error.message);
-    return Promise.all((rows ?? []).map(async (row) => {
+    const reconciled = await reconcileStuckReels(context.supabase, rows ?? []);
+    return Promise.all(reconciled.map(async (row) => {
       if (row.status !== "ready" || !row.storage_path) return row;
       const { data: signed } = await context.supabase.storage.from(OUTPUT_BUCKET).createSignedUrl(row.storage_path, 60 * 60);
       return { ...row, video_url: signed?.signedUrl ?? row.video_url };
@@ -170,6 +233,7 @@ export const generateBrollReels = createServerFn({ method: "POST" })
     const workerUrl = process.env.VPS_RENDER_URL;
     const workerToken = process.env.RENDER_WORKER_TOKEN;
     if (!workerUrl || !workerToken) throw new Error("The render service is not configured.");
+    await assertRendererSupportsBroll(workerUrl);
     const dispatchOne = async (hook: (typeof hooks)[number], index: number) => {
       const now = new Date().toISOString();
       const { data: claimed, error: claimError } = await supabase
@@ -241,6 +305,7 @@ export const generateBrollReels = createServerFn({ method: "POST" })
             fps: 30,
             durationInFrames,
             x264Preset: "veryfast",
+            lane: "broll",
             props,
             upload: { signedUrl: outputUpload.signedUrl, path: storagePath },
             supabase: {

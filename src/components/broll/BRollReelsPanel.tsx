@@ -44,6 +44,7 @@ export const BRollReelsPanel: React.FC<{ brandId: string }> = ({ brandId }) => {
     if (!pending) return;
     const interval = setInterval(() => {
       void qc.invalidateQueries({ queryKey: ["broll-reels", brandId] });
+      void qc.invalidateQueries({ queryKey: ["broll-hooks", brandId] });
     }, 4_000);
     return () => clearInterval(interval);
   }, [pending, brandId, qc]);
