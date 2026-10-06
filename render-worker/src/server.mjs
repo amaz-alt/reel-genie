@@ -5,7 +5,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderJob, isInFlight, markInFlight, clearInFlight, warmRenderer } from "./render.mjs";
 
-const WORKER_VERSION = "0.7.3";
+const WORKER_VERSION = "0.8.0";
 
 /**
  * Fingerprint the bundled Remotion templates. /health returns it so we can tell
@@ -63,8 +63,28 @@ app.get("/health", async () => ({
   version: WORKER_VERSION,
   templates: TEMPLATE_FINGERPRINT,
   // Feature flags let the app assert the deployed build has the fixes it needs.
-  features: ["contiguous-spans", "two-colour-invert", "dynamic-pacing", "hybrid-flow"],
+  features: ["contiguous-spans", "two-colour-invert", "dynamic-pacing", "hybrid-flow", "broll-hook", "broll-lane"],
 }));
+
+const BROLL_PARALLEL = Math.max(1, Number(process.env.BROLL_MAX_PARALLEL ?? 2));
+const brollQueue = [];
+let brollActive = 0;
+function enqueueBroll(task) {
+  brollQueue.push(task);
+  drainBroll();
+}
+function drainBroll() {
+  while (brollActive < BROLL_PARALLEL && brollQueue.length) {
+    const task = brollQueue.shift();
+    brollActive += 1;
+    Promise.resolve()
+      .then(task)
+      .finally(() => {
+        brollActive -= 1;
+        drainBroll();
+      });
+  }
+}
 
 app.post("/render", async (req, reply) => {
   const job = req.body;
@@ -80,11 +100,16 @@ app.post("/render", async (req, reply) => {
 
   reply.code(202).send({ jobId: job.jobId, accepted: true });
 
-  setImmediate(() => {
+  const run = () =>
     renderJob(job)
       .catch((err) => app.log.error({ err, jobId: job.jobId }, "render job crashed"))
       .finally(() => clearInFlight(job.jobId));
-  });
+
+  // B-roll batches can submit up to 30 jobs at once. Rendering them all in
+  // parallel starves the VPS, so B-roll jobs run through their own small lane.
+  // Other formats keep their existing immediate-start behavior.
+  if (job.lane === "broll") enqueueBroll(run);
+  else setImmediate(run);
 });
 
 app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
