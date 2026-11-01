@@ -1,5 +1,6 @@
 import { bundle } from "@remotion/bundler";
-import { renderMedia, selectComposition, ensureBrowser } from "@remotion/renderer";
+import { renderMedia, renderStill, selectComposition, ensureBrowser } from "@remotion/renderer";
+import { spawn } from "node:child_process";
 import { readFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -184,6 +185,60 @@ async function writeResult(job, logs, result) {
   }
 }
 
+function runFfmpeg(args) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    proc.stderr.on("data", (d) => {
+      stderr = (stderr + d.toString()).slice(-2000);
+    });
+    proc.on("error", reject);
+    proc.on("close", (code) =>
+      code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-400)}`)),
+    );
+  });
+}
+
+async function renderBrollFast(job, serveUrl, outPath, log) {
+  const width = job.width ?? 1080;
+  const height = job.height ?? 1920;
+  const fps = job.fps ?? 30;
+  const seconds = Math.max(1, (job.durationInFrames ?? 300) / fps);
+  const overlayPath = join(tmpdir(), `${job.jobId}-overlay.png`);
+  const overlayProps = { hook: job.props.hook, brand: job.props.brand };
+  try {
+    const comp = await selectComposition({ serveUrl, id: job.overlayTemplateId, inputProps: overlayProps });
+    await renderStill({
+      composition: { ...comp, width, height },
+      serveUrl,
+      output: overlayPath,
+      imageFormat: "png",
+      inputProps: overlayProps,
+    });
+    log.info("overlay", "hook card rendered");
+
+    const fade = 0.35;
+    await runFfmpeg([
+      "-y",
+      "-stream_loop", "-1", "-i", job.props.video.url,
+      "-loop", "1", "-framerate", String(fps), "-i", overlayPath,
+      "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+      "-filter_complex",
+      `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase:flags=bicubic,crop=${width}:${height},fps=${fps},setsar=1[bg];` +
+        `[1:v]format=rgba,fade=t=in:st=0:d=${fade}:alpha=1[ov];` +
+        `[bg][ov]overlay=x=0:y='if(lt(t,${fade}),18*(1-t/${fade}),0)':eval=frame,format=yuv420p[v]`,
+      "-map", "[v]", "-map", "2:a",
+      "-t", seconds.toFixed(3),
+      "-c:v", "libx264", "-preset", job.x264Preset ?? "veryfast", "-crf", String(job.crf ?? 23),
+      "-c:a", "aac", "-b:a", "64k",
+      "-movflags", "+faststart",
+      outPath,
+    ]);
+  } finally {
+    unlink(overlayPath).catch(() => {});
+  }
+}
+
 export async function renderJob(job) {
   const log = makeLogger(job.jobId);
   const outPath = join(tmpdir(), `${job.jobId}.mp4`);
@@ -199,6 +254,21 @@ export async function renderJob(job) {
     const serveUrl = await getBundle();
     log.info("bundle", "remotion bundle ready");
 
+    // B-roll fast path (opt-in per job payload): render the hook card once as a
+    // transparent PNG, then let ffmpeg scale the clip + burn the card in one pass.
+    // Avoids screenshotting every frame in Chrome. Other formats never set this.
+    let fastDone = false;
+    if (job.renderer === "ffmpeg-overlay" && job.overlayTemplateId) {
+      try {
+        await renderBrollFast(job, serveUrl, outPath, log);
+        fastDone = true;
+        log.info("render", `fast mp4 written in ${Date.now() - startedAt}ms`);
+      } catch (e) {
+        log.warn("fast_path", `falling back to full render: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+
+    if (!fastDone) {
     const composition = await selectComposition({
       serveUrl,
       id: job.templateId,
@@ -224,6 +294,7 @@ export async function renderJob(job) {
       inputProps: job.props,
     });
     log.info("render", `mp4 written in ${Date.now() - startedAt}ms`);
+    }
 
     const buf = await readFile(outPath);
     const put = await fetch(job.upload.signedUrl, {
