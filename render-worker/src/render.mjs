@@ -220,7 +220,7 @@ async function renderBrollFast(job, serveUrl, outPath, log) {
     const fade = 0.35;
     await runFfmpeg([
       "-y",
-      "-stream_loop", "-1", "-i", job.props.video.url,
+      "-i", job.props.video.url,
       "-loop", "1", "-framerate", String(fps), "-i", overlayPath,
       "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
       "-filter_complex",

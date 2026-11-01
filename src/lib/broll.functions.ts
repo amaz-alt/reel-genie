@@ -306,6 +306,8 @@ export const generateBrollReels = createServerFn({ method: "POST" })
             durationInFrames,
             x264Preset: "veryfast",
             lane: "broll",
+            renderer: "ffmpeg-overlay",
+            overlayTemplateId: "broll-hook-overlay",
             props,
             upload: { signedUrl: outputUpload.signedUrl, path: storagePath },
             supabase: {
