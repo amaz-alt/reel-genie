@@ -7,7 +7,7 @@ import { ProductShowcase } from "./compositions/product-showcase";
 import { QuoteCard } from "./compositions/quote-card";
 import { BeforeAfter } from "./compositions/before-after";
 import { ReactionDemo, type ReactionDemoProps } from "./compositions/reaction-demo";
-import { BrollHook, type BrollHookProps } from "./compositions/broll-hook";
+import { BrollHook, BrollHookOverlay, type BrollHookProps } from "./compositions/broll-hook";
 import { DEFAULT_BRAND, type ReelProps, type Beat } from "./brand";
 
 const demoScript: Beat[] = [
@@ -74,5 +74,12 @@ export const RemotionRoot: React.FC = () => (
       durationInFrames={270}
     />
     <Composition id="broll-hook" component={BrollHook} defaultProps={brollDefaults} {...base} durationInFrames={300} />
+    <Composition
+      id="broll-hook-overlay"
+      component={BrollHookOverlay}
+      defaultProps={{ hook: brollDefaults.hook, brand: brollDefaults.brand }}
+      {...base}
+      durationInFrames={1}
+    />
   </>
 );
