@@ -12,7 +12,8 @@ export const getAutopilotSettings = createServerFn({ method: "GET" })
       .eq("owner_id", context.userId)
       .maybeSingle();
 
-    const { getServiceAccountEmail } = await import("@/lib/google-drive.server");
+    const { driveConnectorConfigured } = await import("@/lib/google-drive.server");
+
 
     const { data: runs } = await context.supabase
       .from("autopilot_runs")
@@ -26,10 +27,10 @@ export const getAutopilotSettings = createServerFn({ method: "GET" })
 
     return {
       settings: settings ?? { drive_parent_folder_id: null, drive_parent_url: null, drive_enabled: true },
-      serviceAccountEmail: getServiceAccountEmail(),
-      driveConfigured: Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
+      driveConfigured: driveConnectorConfigured(),
       runs: runs ?? [],
       schedules: schedules ?? [],
+
     };
   });
 
