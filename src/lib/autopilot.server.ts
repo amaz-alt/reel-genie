@@ -137,7 +137,9 @@ export async function runGeneratePass(sb: Sb, now = new Date()): Promise<RunLog[
 
 export async function runDrivePass(sb: Sb, limit = 4): Promise<RunLog[]> {
   const out: RunLog[] = [];
-  if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return out;
+  const { driveConnectorConfigured } = await import("@/lib/google-drive.server");
+  if (!driveConnectorConfigured()) return out;
+
 
   const { data: reels } = await sb
     .from("reels")

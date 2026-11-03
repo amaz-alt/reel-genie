@@ -134,17 +134,15 @@ export function AutopilotPanel() {
               <p className="text-xs text-muted-foreground">
                 {data?.driveConfigured ? (
                   <>
-                    Share this folder (Editor access) with{" "}
-                    <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
-                      {data?.serviceAccountEmail ?? "the service account"}
-                    </code>
-                    . A subfolder is created per brand and every rendered MP4 lands there
+                    Files upload through your connected Google account — no sharing step needed.
+                    A subfolder is created per brand and every rendered MP4 lands there
                     automatically.
                   </>
                 ) : (
-                  "Google Drive archiving is inactive — the service account key is not configured yet."
+                  "Google Drive archiving is inactive — connect the Google Drive connector first."
                 )}
               </p>
+
               <div className="flex items-center gap-2 pt-1">
                 <Switch
                   checked={data?.settings.drive_enabled ?? true}
