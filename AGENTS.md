@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 
 - Keep B-roll Vids isolated in its own route, server functions, records, and Remotion composition; it may use the shared render worker, but must not change Typography or Reaction + Demo behavior because the three content formats have separate workflows and quality rules. Pass B-roll-only render tuning explicitly in each job payload so other formats retain their existing worker settings.
+- Google Drive archiving authenticates through the Lovable Google Drive connector gateway (user's own OAuth account), never a service account — service accounts have no personal Drive storage quota and uploads 403. Gateway keys: LOVABLE_API_KEY + GOOGLE_DRIVE_API_KEY.
