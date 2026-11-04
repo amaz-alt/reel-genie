@@ -51,8 +51,14 @@ const reactionDemoDefaults: ReactionDemoProps = {
   hookTiming: "on-beat",
 };
 
+const brollBeats: BrollHookProps["beats"] = [
+  { text: "I wish I found", align: "center", position: "center", mode: "pill", font: "display", size: 104, weight: 14 },
+  { text: "this sooner.", align: "center", position: "center", mode: "band", font: "display", size: 88, weight: 11 },
+];
+
 const brollDefaults: BrollHookProps = {
   hook: "I wish I found this sooner.",
+  beats: brollBeats,
   video: { url: "", durationSeconds: 10 },
   brand: DEFAULT_BRAND,
 };
@@ -77,7 +83,7 @@ export const RemotionRoot: React.FC = () => (
     <Composition
       id="broll-hook-overlay"
       component={BrollHookOverlay}
-      defaultProps={{ hook: brollDefaults.hook, brand: brollDefaults.brand }}
+      defaultProps={{ beats: brollBeats, beatIndex: 0, brand: brollDefaults.brand }}
       {...base}
       durationInFrames={1}
     />

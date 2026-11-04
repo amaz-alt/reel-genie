@@ -8,6 +8,45 @@ const TEMPLATE_ID = "broll-hook";
 
 const STUCK_AFTER_MS = 20 * 60 * 1000;
 
+type BrollHookBeat = {
+  text: string;
+  align: "left" | "center" | "right";
+  position: "upper" | "center" | "lower";
+  mode: "pill" | "band";
+  font: "display" | "body";
+  size: number;
+  weight: number;
+};
+
+/**
+ * Split a hook line into short, readable caption beats. Longer clips can hold
+ * more beats; every beat gets a different presentation (colour inversion,
+ * alignment, vertical position, font, size) so the text never reads as one
+ * stacked paragraph.
+ */
+function buildHookBeats(hook: string, seconds: number): BrollHookBeat[] {
+  const words = hook.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  if (words.length <= 3) {
+    const text = words.join(" ");
+    return [{ text, align: "center", position: "center", mode: "pill", font: "display", size: text.length <= 16 ? 104 : 88, weight: text.length + 8 }];
+  }
+  const maxBeats = Math.max(2, Math.min(10, Math.floor(seconds / 1.4)));
+  const beatCount = Math.min(maxBeats, Math.ceil(words.length / 3));
+  const per = Math.ceil(words.length / beatCount);
+  const chunks: string[] = [];
+  for (let i = 0; i < words.length; i += per) chunks.push(words.slice(i, i + per).join(" "));
+  return chunks.map((text, index) => {
+    const chars = text.length;
+    const size = chars <= 16 ? 104 : chars <= 28 ? 88 : chars <= 44 ? 72 : 60;
+    const align = (["center", "center", "left", "right"] as const)[index % 4];
+    const position = (["center", "upper", "center", "lower"] as const)[index % 4];
+    const mode = index % 2 === 0 ? ("pill" as const) : ("band" as const);
+    const font = index % 3 === 2 ? ("body" as const) : ("display" as const);
+    return { text, align, position, mode, font, size, weight: chars + 8 };
+  });
+}
+
 type ReelRow = {
   id: string;
   hook_id: string | null;
@@ -63,8 +102,8 @@ async function assertRendererSupportsBroll(workerUrl: string) {
     throw new Error("The render server isn't responding. Check that it's running on your server, then try again.");
   }
   if (!health) throw new Error("The render server isn't responding. Check that it's running on your server, then try again.");
-  if (!health.features?.includes("broll-hook")) {
-    throw new Error(`Your render server is an older version (${health.version ?? "unknown"}) that can't make B-roll reels. Update it on your server, then generate again.`);
+  if (!health.features?.includes("broll-beats")) {
+    throw new Error(`Your render server is an older version (${health.version ?? "unknown"}) that can't make the new multi-line B-roll reels. Update it on your server, then generate again.`);
   }
 }
 
@@ -265,10 +304,12 @@ export const generateBrollReels = createServerFn({ method: "POST" })
         if (outputError) throw new Error(outputError.message);
 
         const durationInFrames = Math.max(30, Math.min(30 * 60, Math.round((clip.duration_seconds ?? 10) * 30)));
+        const beats = buildHookBeats(hook.hook_text, durationInFrames / 30);
         const colors = (brand.brand_colors ?? {}) as Record<string, string>;
         const fonts = (brand.brand_fonts ?? {}) as Record<string, string>;
         const props = {
           hook: hook.hook_text,
+          beats,
           video: { url: signedClip.signedUrl, durationSeconds: clip.duration_seconds ?? 10 },
           brand: {
             colors: {
@@ -308,6 +349,7 @@ export const generateBrollReels = createServerFn({ method: "POST" })
             lane: "broll",
             renderer: "ffmpeg-overlay",
             overlayTemplateId: "broll-hook-overlay",
+            overlayBeats: beats.length,
             props,
             upload: { signedUrl: outputUpload.signedUrl, path: storagePath },
             supabase: {
