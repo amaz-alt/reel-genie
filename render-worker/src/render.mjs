@@ -204,38 +204,69 @@ async function renderBrollFast(job, serveUrl, outPath, log) {
   const height = job.height ?? 1920;
   const fps = job.fps ?? 30;
   const seconds = Math.max(1, (job.durationInFrames ?? 300) / fps);
-  const overlayPath = join(tmpdir(), `${job.jobId}-overlay.png`);
-  const overlayProps = { hook: job.props.hook, brand: job.props.brand };
+  const brand = job.props.brand;
+  // Multi-beat captions: each beat is its own transparent PNG shown on a time
+  // window. Older queued jobs (no beats) fall back to a single card.
+  const beats = Array.isArray(job.props.beats) && job.props.beats.length
+    ? job.props.beats
+    : [{ text: job.props.hook, align: "center", position: "lower", mode: "pill", font: "display", size: 88, weight: 1 }];
+  const totalWeight = beats.reduce((sum, beat) => sum + (beat.weight || 1), 0);
+  let acc = 0;
+  const windows = beats.map((beat) => {
+    const start = (acc / totalWeight) * seconds;
+    acc += beat.weight || 1;
+    return [start, Math.min(seconds, (acc / totalWeight) * seconds)];
+  });
+  const paths = [];
+  const overlayPropsBase = { beats, brand };
   try {
-    const comp = await selectComposition({ serveUrl, id: job.overlayTemplateId, inputProps: overlayProps });
-    await renderStill({
-      composition: { ...comp, width, height },
-      serveUrl,
-      output: overlayPath,
-      imageFormat: "png",
-      inputProps: overlayProps,
-    });
-    log.info("overlay", "hook card rendered");
+    const comp = await selectComposition({ serveUrl, id: job.overlayTemplateId, inputProps: { ...overlayPropsBase, beatIndex: 0 } });
+    for (let i = 0; i < beats.length; i++) {
+      const path = join(tmpdir(), `${job.jobId}-beat-${i}.png`);
+      await renderStill({
+        composition: { ...comp, width, height },
+        serveUrl,
+        output: path,
+        imageFormat: "png",
+        inputProps: { ...overlayPropsBase, beatIndex: i },
+      });
+      paths.push(path);
+    }
+    log.info("overlay", `${beats.length} beat cards rendered`);
 
-    const fade = 0.35;
-    await runFfmpeg([
-      "-y",
-      "-i", job.props.video.url,
-      "-loop", "1", "-framerate", String(fps), "-i", overlayPath,
-      "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
-      "-filter_complex",
-      `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase:flags=bicubic,crop=${width}:${height},fps=${fps},setsar=1[bg];` +
-        `[1:v]format=rgba,fade=t=in:st=0:d=${fade}:alpha=1[ov];` +
-        `[bg][ov]overlay=x=0:y='if(lt(t,${fade}),18*(1-t/${fade}),0)':eval=frame,format=yuv420p[v]`,
-      "-map", "[v]", "-map", "2:a",
+    const fade = 0.22;
+    const args = ["-y", "-i", job.props.video.url];
+    for (const path of paths) args.push("-loop", "1", "-framerate", String(fps), "-i", path);
+    const audioIndex = paths.length + 1;
+    args.push("-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo");
+
+    let filter = `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase:flags=bicubic,crop=${width}:${height},fps=${fps},setsar=1[bg]`;
+    let prev = "bg";
+    for (let i = 0; i < paths.length; i++) {
+      const [start, end] = windows[i];
+      const s = start.toFixed(3);
+      const e = end.toFixed(3);
+      filter += `;[${i + 1}:v]format=rgba,fade=t=in:st=${s}:d=${fade}:alpha=1,fade=t=out:st=${(end - fade).toFixed(3)}:d=${fade}:alpha=1[ov${i}]`;
+      // Subtle directional entrance varying per beat: fade / slide from left / slide from right.
+      let xExpr = "0";
+      if (i % 3 === 1) xExpr = `'if(lt(t,${(start + 0.3).toFixed(3)}),38*(1-(t-${s})/0.3),0)'`;
+      if (i % 3 === 2) xExpr = `'if(lt(t,${(start + 0.3).toFixed(3)}),-38*(1-(t-${s})/0.3),0)'`;
+      filter += `;[${prev}][ov${i}]overlay=x=${xExpr}:y=0:enable='between(t,${s},${e})'[v${i}]`;
+      prev = `v${i}`;
+    }
+    filter += `;[${prev}]format=yuv420p[v]`;
+
+    args.push("-filter_complex", filter, "-map", "[v]", "-map", `${audioIndex}:a`);
+    args.push(
       "-t", seconds.toFixed(3),
       "-c:v", "libx264", "-preset", job.x264Preset ?? "veryfast", "-crf", String(job.crf ?? 23),
       "-c:a", "aac", "-b:a", "64k",
       "-movflags", "+faststart",
       outPath,
-    ]);
+    );
+    await runFfmpeg(args);
   } finally {
-    unlink(overlayPath).catch(() => {});
+    for (const path of paths) unlink(path).catch(() => {});
   }
 }
 

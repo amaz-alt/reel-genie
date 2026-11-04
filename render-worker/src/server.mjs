@@ -5,7 +5,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderJob, isInFlight, markInFlight, clearInFlight, warmRenderer } from "./render.mjs";
 
-const WORKER_VERSION = "0.9.0";
+const WORKER_VERSION = "0.9.1";
 
 /**
  * Fingerprint the bundled Remotion templates. /health returns it so we can tell
@@ -63,7 +63,7 @@ app.get("/health", async () => ({
   version: WORKER_VERSION,
   templates: TEMPLATE_FINGERPRINT,
   // Feature flags let the app assert the deployed build has the fixes it needs.
-  features: ["contiguous-spans", "two-colour-invert", "dynamic-pacing", "hybrid-flow", "broll-hook", "broll-lane", "broll-ffmpeg"],
+  features: ["contiguous-spans", "two-colour-invert", "dynamic-pacing", "hybrid-flow", "broll-hook", "broll-lane", "broll-ffmpeg", "broll-beats"],
 }));
 
 const BROLL_PARALLEL = Math.max(1, Number(process.env.BROLL_MAX_PARALLEL ?? 2));
