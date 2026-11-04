@@ -304,10 +304,12 @@ export const generateBrollReels = createServerFn({ method: "POST" })
         if (outputError) throw new Error(outputError.message);
 
         const durationInFrames = Math.max(30, Math.min(30 * 60, Math.round((clip.duration_seconds ?? 10) * 30)));
+        const beats = buildHookBeats(hook.hook_text, durationInFrames / 30);
         const colors = (brand.brand_colors ?? {}) as Record<string, string>;
         const fonts = (brand.brand_fonts ?? {}) as Record<string, string>;
         const props = {
           hook: hook.hook_text,
+          beats,
           video: { url: signedClip.signedUrl, durationSeconds: clip.duration_seconds ?? 10 },
           brand: {
             colors: {
@@ -347,6 +349,7 @@ export const generateBrollReels = createServerFn({ method: "POST" })
             lane: "broll",
             renderer: "ffmpeg-overlay",
             overlayTemplateId: "broll-hook-overlay",
+            overlayBeats: beats.length,
             props,
             upload: { signedUrl: outputUpload.signedUrl, path: storagePath },
             supabase: {
